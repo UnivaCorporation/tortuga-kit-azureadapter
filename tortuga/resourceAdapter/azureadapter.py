@@ -22,6 +22,7 @@ import base64
 import shlex
 import itertools
 import datetime
+from typing import Optional, Union, NoReturn
 import gevent
 import gevent.queue
 import gevent.lock
@@ -524,7 +525,7 @@ class Azureadapter(ResourceAdapter):
         launch_jobs = [
             gevent.spawn(
                 self.__launch_vm, addNodesRequest, azure_session,
-                node_request) for node_request in node_requests]
+                dbSession, node_request) for node_request in node_requests]
 
         # Create queue used for waiting on launch VMs
         wait_queue = gevent.queue.JoinableQueue()
@@ -636,8 +637,6 @@ class Azureadapter(ResourceAdapter):
                         time_delta.seconds + time_delta.microseconds /
                         1000000.0))
 
-                self.__vm_post_launch(azure_session, node_request, vm_name)
-
                 # Update node state
                 node.state = 'Provisioned'
                 dbSession.commit()
@@ -691,7 +690,8 @@ class Azureadapter(ResourceAdapter):
 
         session.delete(node)
 
-    def __launch_vm(self, addNodesRequest, azure_session, node_request):
+    def __launch_vm(self, addNodesRequest, azure_session,
+                    db_session: Session, node_request: dict):
         node = node_request['node']
 
         vm_name = get_vm_name(node.name)
@@ -702,7 +702,7 @@ class Azureadapter(ResourceAdapter):
 
         try:
             async_vm_creation = self.__create_vm(
-                azure_session, node, custom_data=custom_data,
+                azure_session, db_session, node, custom_data=custom_data,
                 tags=addNodesRequest['tags'])
 
             return async_vm_creation, node_request
@@ -878,35 +878,9 @@ dns_nameservers = %(dns_nameservers)s
 
         return result
 
-    def __vm_post_launch(self, azure_session, node_request, vm_name):
-        """Called after VM has been launched successfully
-
-        Raises:
-            ConfigurationError
-        """
-
-        node = node_request['node']
-
-        # Perform post-launch operations
-
-        # get instance ip address
-
-        vm = self.__azure_get_vm(azure_session, vm_name)
-
-        intfc = vm.network_profile.network_interfaces[0]
-
-        nic = azure_session.network_client.network_interfaces.get(
-            azure_session.config['resource_group'],
-            os.path.basename(intfc.id))
-
-        # TODO: ensure we have 'primary' interface
-        ip = nic.ip_configurations[0].private_ip_address
-
-        # Set the IP address for the node instance
-        node.nics[0].ip = ip
-        node.nics[0].boot = True
-
-    def __create_vm(self, session, node: Nodes, custom_data=None, tags=None):
+    def __create_vm(self, session, db_session: Session, node: Nodes,
+                    custom_data: Optional[Union[str, None]] = None,
+                    tags=None) -> NoReturn:
         """Raw Azure create VM operation"""
 
         vm_name = get_vm_name(node.name)
@@ -916,6 +890,13 @@ dns_nameservers = %(dns_nameservers)s
 
         # Create network interface
         nic = self.create_nic(session, vm_name)
+
+        # Associate internal nic with node
+        node.nics.append(
+            Nics(ip=nic.ip_configurations[0].private_ip_address, boot=True))
+
+        # ...and commit to database
+        db_session.commit()
 
         # Call pre-add-host to set up DNS record
         self._pre_add_host(
