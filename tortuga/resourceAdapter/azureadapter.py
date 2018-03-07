@@ -312,17 +312,14 @@ class Azureadapter(ResourceAdapter):
             # Always include Tortuga installer DNS server as default
             configDict['dns_nameservers'].append(
                 self.installer_public_ipaddress)
-        try:
-            configDict['vcpus'] = int(configDict['vcpus'])
-        except ValueError:
-            raise ConfigurationError(
-                'Invalid/malformed value for \'vcpus\'')
 
-        try:
-            configDict['vcpus'] = int(configDict['vcpus'])
-        except ValueError:
-            raise ConfigurationError(
-                'Invalid/malformed value for \'vcpus\'')
+        if 'vcpus' in configDict:
+            # resource adapter vcpus configuration overrides all
+            try:
+                configDict['vcpus'] = int(configDict['vcpus'])
+            except ValueError:
+                raise ConfigurationError(
+                    'Invalid/malformed value for \'vcpus\'')
 
         return configDict
 
