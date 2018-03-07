@@ -1099,10 +1099,9 @@ dns_nameservers = %(dns_nameservers)s
                         'public_ip_address_version': 'IPv4',
                     })
 
-            while not public_ip_address_creation.done():
-                gevent.sleep(3.0)
-
-            public_ip_address = public_ip_address_creation.result()
+            public_ip_address = self.__wait_for_async_request(
+                public_ip_address_creation, 'create_public_ip',
+                max_sleep_time=10000, initial_sleep_time=10000)
 
             ip_configuration['public_ip_address'] = \
                 dict(id=public_ip_address.id)
@@ -1117,10 +1116,9 @@ dns_nameservers = %(dns_nameservers)s
                     'ip_configurations': [ip_configuration],
                 })
 
-        while not async_nic_creation.done():
-            gevent.sleep(3.0)
-
-        return async_nic_creation.result()
+        return self.__wait_for_async_request(
+            async_nic_creation, tag='create_nic', max_sleep_time=10000,
+            initial_sleep_time=10000)
 
     def suspendActiveNode(self, nodeId): \
             # pylint: disable=unused-argument,no-self-use
