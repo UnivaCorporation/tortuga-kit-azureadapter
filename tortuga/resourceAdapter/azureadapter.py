@@ -702,7 +702,7 @@ class Azureadapter(ResourceAdapter):
 
         try:
             async_vm_creation = self.__create_vm(
-                azure_session, vm_name, custom_data=custom_data,
+                azure_session, node, custom_data=custom_data,
                 tags=addNodesRequest['tags'])
 
             return async_vm_creation, node_request
@@ -906,19 +906,23 @@ dns_nameservers = %(dns_nameservers)s
         node.nics[0].ip = ip
         node.nics[0].boot = True
 
-        # Call pre-add-host to set up DNS record
-        self._pre_add_host(
-            node.name, node.hardwareprofile.name,
-            node.softwareprofile.name, ip)
-
-    def __create_vm(self, session, vm_name, custom_data=None, tags=None):
+    def __create_vm(self, session, node: Nodes, custom_data=None, tags=None):
         """Raw Azure create VM operation"""
+
+        vm_name = get_vm_name(node.name)
 
         self.getLogger().debug(
             '__create_vm(): vm_name=[{0}]'.format(vm_name))
 
         # Create network interface
         nic = self.create_nic(session, vm_name)
+
+        # Call pre-add-host to set up DNS record
+        self._pre_add_host(
+            node.name,
+            node.hardwareprofile.name,
+            node.softwareprofile.name,
+            nic.ip_configurations[0].private_ip_address)
 
         # Create VM "template"
         vm_parameters = self.create_vm_parameters(
@@ -1099,10 +1103,9 @@ dns_nameservers = %(dns_nameservers)s
                         'public_ip_address_version': 'IPv4',
                     })
 
-            while not public_ip_address_creation.done():
-                gevent.sleep(3.0)
-
-            public_ip_address = public_ip_address_creation.result()
+            public_ip_address = self.__wait_for_async_request(
+                public_ip_address_creation, 'create_public_ip',
+                max_sleep_time=10000, initial_sleep_time=10000)
 
             ip_configuration['public_ip_address'] = \
                 dict(id=public_ip_address.id)
@@ -1117,10 +1120,9 @@ dns_nameservers = %(dns_nameservers)s
                     'ip_configurations': [ip_configuration],
                 })
 
-        while not async_nic_creation.done():
-            gevent.sleep(3.0)
-
-        return async_nic_creation.result()
+        return self.__wait_for_async_request(
+            async_nic_creation, tag='create_nic', max_sleep_time=10000,
+            initial_sleep_time=10000)
 
     def suspendActiveNode(self, nodeId): \
             # pylint: disable=unused-argument,no-self-use
@@ -1449,7 +1451,8 @@ dns_nameservers = %(dns_nameservers)s
                 # process delete_request
                 self.__wait_for_async_request(
                     delete_request['async_request'],
-                    tag='Deleting VM [{0}]'.format(vm_name))
+                    tag='Deleting VM [{0}]'.format(vm_name),
+                    max_sleep_time=15000, initial_sleep_time=30000)
 
                 # Delete associated network interfaces
                 for network_interface in \
@@ -1493,24 +1496,35 @@ dns_nameservers = %(dns_nameservers)s
             finally:
                 wait_queue.task_done()
 
-    def __wait_for_async_request(self, async_request, tag=None,
-                                 max_sleep_time=7000, sleep_interval=2000):
+    def __wait_for_async_request(self, async_request, tag: str = None,
+                                 max_sleep_time: int = 7000,
+                                 sleep_interval: int = 2000,
+                                 initial_sleep_time: int = 7000):
         """
+        Generic routine for waiting on an async Azure request
+
+        :param max_sleep_time: maximum sleep time (in milliseconds)
+        :param sleep_interval: time between polling intervals (in milliseconds)
+        :param initial_sleep_time: initial sleep time (in milliseconds)
+        :return: result from async request
+
         Raise:
             AzureOperationTimeout
         """
 
         logmsg_prefix = '{0}: '.format(tag) if tag else ''
 
-        retries = 0
-
         total_sleep_time = 0
 
-        while not async_request.done():
-            retries += 1
+        for retries in itertools.count(0):
+            if async_request.done():
+                break
 
-            temp = min(max_sleep_time, sleep_interval * 2 ** retries)
-            sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
+            if retries == 0:
+                sleeptime = initial_sleep_time / 1000.0
+            else:
+                temp = min(max_sleep_time, sleep_interval * 2 ** retries)
+                sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
 
             self.getLogger().debug(
                 '{0}sleeping {1:.2f} seconds on async request'.format(
@@ -1710,7 +1724,7 @@ dns_nameservers = %(dns_nameservers)s
 
             yield node, azure_session, vm_name
 
-    def get_core_count(self, session, location, vm_size, default=1):
+    def get_core_count(self, session, location, vm_size, default: int = 1):
         """
         Query VM sizes from Azure
         """
@@ -1729,16 +1743,7 @@ dns_nameservers = %(dns_nameservers)s
 
         return default
 
-    def get_core_count_for_profile(self, session, profile_name=None):
-        default_vcpus = super(Azureadapter, self).\
-            get_core_count_for_profile(profile_name=profile_name)
-
-        return self.get_core_count(session,
-                                   session.config['location'],
-                                   session.config['size'],
-                                   default=default_vcpus)
-
-    def get_node_vcpus(self, name):
+    def get_node_vcpus(self, name: str) -> int:
         """
         Raises:
             ResourceNotFound
@@ -1757,8 +1762,9 @@ dns_nameservers = %(dns_nameservers)s
         if 'vcpus' in session.config:
             return session.config['vcpus']
 
-        return self.get_core_count_for_profile(session,
-                                               profile_name=profile_name)
+        return self.get_core_count(session,
+                                   session.config['location'],
+                                   session.config['size'])
 
 
 def get_vm_name(name):
