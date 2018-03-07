@@ -25,7 +25,6 @@ import datetime
 import gevent
 import gevent.queue
 import gevent.lock
-import ipaddress
 from sqlalchemy.orm.session import Session
 from jinja2 import Environment, FileSystemLoader
 from azure.common.credentials import ServicePrincipalCredentials
