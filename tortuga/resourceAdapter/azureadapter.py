@@ -616,15 +616,18 @@ class Azureadapter(ResourceAdapter):
             async_vm_creation, node_request = wait_queue.get()
 
             try:
+                node = node_request['node']
+                vm_name = get_vm_name(node.name)
+
+                self.getLogger().debug(
+                    'Waiting for VM [{}]...'.format(vm_name))
+
                 start_time = datetime.datetime.utcnow()
 
                 self.__wait_for_vm_completion(
                     azure_session, node_request, async_vm_creation)
 
                 time_delta = datetime.datetime.utcnow() - start_time
-
-                node = node_request['node']
-                vm_name = get_vm_name(node.name)
 
                 self.getLogger().debug(
                     'VM [{0}] launched successfully after {1}'
@@ -731,21 +734,26 @@ class Azureadapter(ResourceAdapter):
         # before polling. 'sleep_interval' is the number of seconds
         # between requests.
         # TODO: ultimately these may become tunables
-        max_sleep_time = 7000
+        max_sleep_time = 15000
         sleep_interval = 2000
 
         total_wait_time = 0
 
         # Poll VM state; break out when provisioning state is "Succeeded"
-        for retries in itertools.count(1):
+        for retries in itertools.count(0):
             if async_vm_creation.done():
                 break
 
-            # Use fuzzed exponential backoff algorithm to stagger
-            # API requests
-            temp = min(max_sleep_time, sleep_interval * 2 ** retries)
+            if retries == 0:
+                # first loop iteration; wait for longer time while Azure
+                # creates resources.
+                sleeptime = 15
+            else:
+                # Use fuzzed exponential backoff algorithm to stagger
+                # API requests
+                temp = min(max_sleep_time, sleep_interval * 2 ** retries)
 
-            sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
+                sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
 
             # TODO: implement timeout checking here
 
