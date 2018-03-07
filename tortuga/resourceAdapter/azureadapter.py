@@ -1493,24 +1493,35 @@ dns_nameservers = %(dns_nameservers)s
             finally:
                 wait_queue.task_done()
 
-    def __wait_for_async_request(self, async_request, tag=None,
-                                 max_sleep_time=7000, sleep_interval=2000):
+    def __wait_for_async_request(self, async_request, tag: str = None,
+                                 max_sleep_time: int = 7000,
+                                 sleep_interval: int = 2000,
+                                 initial_sleep_time: int = 7000):
         """
+        Generic routine for waiting on an async Azure request
+
+        :param max_sleep_time: maximum sleep time (in milliseconds)
+        :param sleep_interval: time between polling intervals (in milliseconds)
+        :param initial_sleep_time: initial sleep time (in milliseconds)
+        :return: result from async request
+
         Raise:
             AzureOperationTimeout
         """
 
         logmsg_prefix = '{0}: '.format(tag) if tag else ''
 
-        retries = 0
-
         total_sleep_time = 0
 
-        while not async_request.done():
-            retries += 1
+        for retries in itertools.count(0):
+            if async_request.done():
+                break
 
-            temp = min(max_sleep_time, sleep_interval * 2 ** retries)
-            sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
+            if retries == 0:
+                sleeptime = initial_sleep_time / 1000.0
+            else:
+                temp = min(max_sleep_time, sleep_interval * 2 ** retries)
+                sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
 
             self.getLogger().debug(
                 '{0}sleeping {1:.2f} seconds on async request'.format(
