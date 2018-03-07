@@ -42,7 +42,6 @@ from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.networkNotFound import NetworkNotFound
 from tortuga.db.nics import Nics
-from tortuga.addhost.addHostServerLocal import AddHostServerLocal
 from tortuga.db.nodes import Nodes
 from tortuga.resourceAdapter.utility import get_provisioning_nic, \
     get_provisioning_hwprofilenetwork, iter_provisioning_nics
@@ -60,11 +59,6 @@ class Azureadapter(ResourceAdapter):
     __adaptername__ = 'azure'
 
     DEFAULT_CREATE_TIMEOUT = 900
-
-    def __init__(self, addHostSession=None):
-        super(Azureadapter, self).__init__(addHostSession=addHostSession)
-
-        self.addhost_api = AddHostServerLocal()
 
     def start(self, addNodesRequest, dbSession, dbHardwareProfile,
               dbSoftwareProfile=None):
@@ -100,7 +94,7 @@ class Azureadapter(ResourceAdapter):
 
         # This is a necessary evil for the time being, until there's
         # a proper context manager implemented.
-        AddHostServerLocal.clear_session_nodes(nodes)
+        self.addHostApi.clear_session_nodes(nodes)
 
         end_time = datetime.datetime.utcnow()
 
@@ -123,7 +117,7 @@ class Azureadapter(ResourceAdapter):
                       override_dns_domain=None):
         """Returns Nodes object"""
 
-        name = self.addhost_api.generate_node_name(
+        name = self.addHostApi.generate_node_name(
             session,
             hardwareprofile.nameFormat,
             randomize=not generate_ip, dns_zone=self.private_dns_zone)
@@ -179,7 +173,7 @@ class Azureadapter(ResourceAdapter):
 
             # IP address assigned on Tortuga provisioning network
             internal_nic.ip = \
-                self.addhost_api.generate_provisioning_ip_address(
+                self.addHostApi.generate_provisioning_ip_address(
                     internal_nic.network)
 
         node.nics.append(internal_nic)
@@ -687,7 +681,7 @@ class Azureadapter(ResourceAdapter):
         """Remove Nodes and associated Nics from database"""
 
         # Ensure session node cache entry is removed for failed launch
-        AddHostServerLocal.clear_session_node(node)
+        self.addHostApi.clear_session_node(node)
 
         for nic in node.nics:
             session.delete(nic)
