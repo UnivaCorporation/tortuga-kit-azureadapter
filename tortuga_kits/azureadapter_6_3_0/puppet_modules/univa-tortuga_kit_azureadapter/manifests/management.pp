@@ -14,11 +14,11 @@
 
 
 class tortuga_kit_azureadapter::management {
+  $compdescr = "management-${tortuga_kit_azureadapter::config::major_version}"
+
   contain tortuga_kit_azureadapter::management::package
   contain tortuga_kit_azureadapter::management::install
   contain tortuga_kit_azureadapter::management::config
-
-  $compdescr = "management-${tortuga_kit_azureadapter::config::major_version}"
 
   # Notify Tortuga web service to restart after installing Azure adapter
   Class['tortuga_kit_azureadapter::management::install']

@@ -1016,7 +1016,7 @@ dns_nameservers = %(dns_nameservers)s
 
         if custom_data is not None:
             result['os_profile']['custom_data'] = \
-                base64.b64encode(custom_data)
+                base64.b64encode(custom_data.encode())
 
         return result
 
@@ -1388,7 +1388,8 @@ dns_nameservers = %(dns_nameservers)s
         for req in gevent.iwait(reqs):
             delete_request = req.get()
 
-            if delete_request['async_request'] is None:
+            if 'async_request' in delete_request and \
+                    delete_request['async_request'] is None:
                 continue
 
             # Enqueue completed delete requests
