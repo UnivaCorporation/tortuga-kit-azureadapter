@@ -1018,7 +1018,7 @@ dns_nameservers = %(dns_nameservers)s
 
         if custom_data is not None:
             result['os_profile']['custom_data'] = \
-                base64.b64encode(custom_data.encode())
+                base64.b64encode(custom_data.encode()).decode()
 
         return result
 
