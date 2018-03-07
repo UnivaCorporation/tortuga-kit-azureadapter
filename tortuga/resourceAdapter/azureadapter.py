@@ -1724,7 +1724,7 @@ dns_nameservers = %(dns_nameservers)s
 
             yield node, azure_session, vm_name
 
-    def get_core_count(self, session, location, vm_size, default=1):
+    def get_core_count(self, session, location, vm_size, default: int = 1):
         """
         Query VM sizes from Azure
         """
@@ -1743,16 +1743,7 @@ dns_nameservers = %(dns_nameservers)s
 
         return default
 
-    def get_core_count_for_profile(self, session, profile_name=None):
-        default_vcpus = super(Azureadapter, self).\
-            get_core_count_for_profile(profile_name=profile_name)
-
-        return self.get_core_count(session,
-                                   session.config['location'],
-                                   session.config['size'],
-                                   default=default_vcpus)
-
-    def get_node_vcpus(self, name):
+    def get_node_vcpus(self, name: str) -> int:
         """
         Raises:
             ResourceNotFound
@@ -1771,8 +1762,9 @@ dns_nameservers = %(dns_nameservers)s
         if 'vcpus' in session.config:
             return session.config['vcpus']
 
-        return self.get_core_count_for_profile(session,
-                                               profile_name=profile_name)
+        return self.get_core_count(session,
+                                   session.config['location'],
+                                   session.config['size'])
 
 
 def get_vm_name(name):
