@@ -26,6 +26,7 @@ import gevent
 import gevent.queue
 import gevent.lock
 import ipaddress
+from sqlalchemy.orm.session import Session
 from jinja2 import Environment, FileSystemLoader
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.common import AzureMissingResourceHttpError
@@ -114,15 +115,17 @@ class Azureadapter(ResourceAdapter):
 
         return nodes
 
-    def __add_idle_nodes(self, addNodesRequest, dbsession,
+    def __add_idle_nodes(self, addNodesRequest, dbsession: Session,
                          hardwareprofile, softwareprofile):
         """Add idle node records"""
 
-    def __create_node(self, hardwareprofile, softwareprofile,
-                      generate_ip=False, override_dns_domain=None):
+    def __create_node(self, session: Session, hardwareprofile,
+                      softwareprofile, generate_ip=False,
+                      override_dns_domain=None):
         """Returns Nodes object"""
 
         name = self.addhost_api.generate_node_name(
+            session,
             hardwareprofile.nameFormat,
             randomize=not generate_ip, dns_zone=self.private_dns_zone)
 
@@ -184,7 +187,7 @@ class Azureadapter(ResourceAdapter):
 
         return node
 
-    def __create_nodes(self, count, hardwareprofile,
+    def __create_nodes(self, count, session: Session, hardwareprofile,
                        softwareprofile, configDict): \
             # pylint: disable=unused-argument
         """Wrapper around __create_node()
@@ -197,6 +200,7 @@ class Azureadapter(ResourceAdapter):
 
         return [
             self.__create_node(
+                session,
                 hardwareprofile,
                 softwareprofile,
                 generate_ip=False,
@@ -499,6 +503,7 @@ class Azureadapter(ResourceAdapter):
         # Precreate node records
         nodes = self.__create_nodes(
             addNodesRequest['count'],
+            dbSession,
             hardwareprofile,
             softwareprofile,
             azure_session.config)
