@@ -702,7 +702,7 @@ class Azureadapter(ResourceAdapter):
 
         try:
             async_vm_creation = self.__create_vm(
-                azure_session, vm_name, custom_data=custom_data,
+                azure_session, node, custom_data=custom_data,
                 tags=addNodesRequest['tags'])
 
             return async_vm_creation, node_request
@@ -906,19 +906,23 @@ dns_nameservers = %(dns_nameservers)s
         node.nics[0].ip = ip
         node.nics[0].boot = True
 
-        # Call pre-add-host to set up DNS record
-        self._pre_add_host(
-            node.name, node.hardwareprofile.name,
-            node.softwareprofile.name, ip)
-
-    def __create_vm(self, session, vm_name, custom_data=None, tags=None):
+    def __create_vm(self, session, node: Nodes, custom_data=None, tags=None):
         """Raw Azure create VM operation"""
+
+        vm_name = get_vm_name(node.name)
 
         self.getLogger().debug(
             '__create_vm(): vm_name=[{0}]'.format(vm_name))
 
         # Create network interface
         nic = self.create_nic(session, vm_name)
+
+        # Call pre-add-host to set up DNS record
+        self._pre_add_host(
+            node.name,
+            node.hardwareprofile.name,
+            node.softwareprofile.name,
+            nic.ip_configurations[0].private_ip_address)
 
         # Create VM "template"
         vm_parameters = self.create_vm_parameters(
