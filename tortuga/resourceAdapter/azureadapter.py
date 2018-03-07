@@ -1447,7 +1447,8 @@ dns_nameservers = %(dns_nameservers)s
                 # process delete_request
                 self.__wait_for_async_request(
                     delete_request['async_request'],
-                    tag='Deleting VM [{0}]'.format(vm_name))
+                    tag='Deleting VM [{0}]'.format(vm_name),
+                    max_sleep_time=15000, initial_sleep_time=30000)
 
                 # Delete associated network interfaces
                 for network_interface in \
