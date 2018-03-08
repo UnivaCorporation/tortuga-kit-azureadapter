@@ -157,11 +157,15 @@ adapter kit included with the Tortuga distribution.
 Install the Azure resource adapter kit by running the following
 command as `root` on a Tortuga installer host:
 
-    install-kit --i-accept-the-eula kit-azureadapter-6.3.0-0.tar.bz2
+```shell
+install-kit --i-accept-the-eula kit-azureadapter-6.3.0-0.tar.bz2
+```
 
 The Azure resource adapter is enabled as follows, again run as `root`:
 
-    enable-component -p azureadapter-6.3.0-0 management-6.3
+```shell
+enable-component -p azureadapter-6.3.0-0 management-6.3
+```
 
 The Azure resource adapter kit is now installed and ready to be
 configured.
@@ -179,8 +183,7 @@ configuration profile.
 1. **Create the `default` Resource Adapter Configuration Profile**
 
     This example configures the Azure resource adapter to use Ubuntu
-    16.04 (Xenial) compute nodes in a hybrid environment (on-premise
-    Tortuga installer).
+    16.04 (Xenial) compute nodes.
 
         adapter-mgmt create --resource-adapter azure --profile default \
             -s subscription_id=<Azure subscription id> \
@@ -263,15 +266,19 @@ double-quotes.
 
 Example:
 
-    adapter-mgmt update --resource-adapter azure \
-        --profile default \
-        --setting "tags=owner:admin"
+```shell
+adapter-mgmt update --resource-adapter azure \
+    --profile default \
+    --setting "tags=owner:admin"
+```
 
 Tag name/values containing spaces:
 
-    adapter-mgmt update --resource-adapter azure \
-        --profile default \
-        --setting tags="key:value \"this is the tag name:this is the tag value\""
+```shell
+adapter-mgmt update --resource-adapter azure \
+    --profile default \
+    --setting tags="key:value \"this is the tag name:this is the tag value\""
+```
 
 \newpage
 
@@ -530,26 +537,32 @@ Univa Grid Engine requires both forward and reverse (IP to host name)
 DNS resolution. As a result, it is necessary to enable the built-in
 Tortuga DNS server as follows:
 
-    enable-component -p dns
-    genconfig dns
-    /opt/puppetlabs/bin/puppet agent --onetime --no-daemonize --verbose
+```shell
+enable-component -p dns
+genconfig dns
+/opt/puppetlabs/bin/puppet agent --onetime --no-daemonize --verbose
+```
 
 Refer to the section in this manual on configuring and/or customizing
 the built-in Tortuga DNS server for more information.
 
 **Note:** if the Tortuga DNS server is enabled *after* the UGE qmaster
-*has been started on the Tortuga installer, it will be necessary to
-*restart (stop/start) the UGE qmaster:
-
-On RHEL/CentOS 6:
-
-    service sgemaster.tortuga stop
-    service sgemaster.tortuga.stop
+has been started on the Tortuga installer, it will be necessary to
+restart (stop/start) the UGE qmaster:
 
 On RHEL/CentOS 7:
 
-    systemctl stop sgemaster.tortuga
-    systemctl start sgemaster.tortuga
+```shell
+systemctl stop sgemaster.tortuga
+systemctl start sgemaster.tortuga
+```
+
+On RHEL/CentOS 6:
+
+```shell
+service sgemaster.tortuga stop
+service sgemaster.tortuga.stop
+```
 
 If using an external/custom DNS server, ensure it provides forward and
 reverse DNS resolution for Tortuga managed nodes.
@@ -572,14 +585,14 @@ Refer to documentation on Tortuga DNS for further details.
 Add `dns_search` and `dns_nameservers` settings here as appropriate. For
 example, if the corporate DNS server enables DNS (sub)domain delegation
 for Tortuga-managed nodes, it may be desirable to set `dns_nameservers`
-to *only** include the IP address(es) of the corporate DNS server(s).
+to *only* include the IP address(es) of the corporate DNS server(s).
 This would configure Tortuga-managed Azure compute nodes to use the
 upstream corporate DNS server, which would then delegate DNS lookups to
 the Tortuga DNS server.
 
 **Note:** it is possible to set the default DNS server IP address (but
-*not the DNS domain) in the Azure Virtual Network settings. This DNS
-*server setting is applied **unless** `override_dns_domain` is enabled.
+not the DNS domain) in the Azure Virtual Network settings. This DNS
+server setting is applied **unless** `override_dns_domain` is enabled.
 
 \newpage
 
@@ -623,9 +636,11 @@ above, adding nodes in the Azure environment is done using the
 The following example will create 6 nodes on Azure using the software
 profile `execd` and hardware profile `execd-azure`.
 
-    add-nodes --count 6 \
-        --software-profile execd \
-        --hardware-profile execd-azure
+```shell
+add-nodes --count 6 \
+    --software-profile execd \
+    --hardware-profile execd-azure
+```
 
 It is assumed the software profile `execd` is mapped to hardware profile
 `execd-azure` and the hardware profile `execd-azure` is properly
@@ -634,10 +649,12 @@ configured as per the above.
 If using a resource adapter configuration profile, use the
 `--resource-adapter-configuration` (or the `-A` shortcut) argument:
 
-    add-nodes --count 6 \
-        --software-profile execd \
-        --hardware-profile execd-azure \
-        --resource-adapter-configuration otherzone
+```shell
+add-nodes --count 6 \
+    --software-profile execd \
+    --hardware-profile execd-azure \
+    --resource-adapter-configuration otherzone
+```
 
 where *otherzone* is the name of an existing Azure resource adapter
 configuration profile.
@@ -651,18 +668,22 @@ argument.
 For example, to add nodes using the SSH public key found in the file
 `/root/.ssh/my_pub_key`:
 
-    add-nodes --count 6 \
-        --software-profile execd \
-        --hardware-profile execd-azure \
-        --extra-arg="ssh-key-value=/root/.ssh/my_pub_key"
+```shell
+add-nodes --count 6 \
+    --software-profile execd \
+    --hardware-profile execd-azure \
+    --extra-arg="ssh-key-value=/root/.ssh/my_pub_key"
+```
 
 Similar to the resource adapter configuration setting, it is also
 possible to specify the key here as well:
 
-    add-nodes --count 6 \
-        --software-profile execd \
-        --hardware-profile execd-azure \
-        --extra-arg="ssh-key-value=\"ssh-rsa ... mykey\""
+```shell
+add-nodes --count 6 \
+    --software-profile execd \
+    --hardware-profile execd-azure \
+    --extra-arg="ssh-key-value=\"ssh-rsa ... mykey\""
+```
 
 where the ellipsis (...) is the actual key value.
 
@@ -673,9 +694,9 @@ configuration.
 
 ## Best Practices
 
-* Create a unique Azure resource group and storage accounts for Tortuga
-* to prevent "cross-polination" of Tortuga-managed resources with other
-* resources within the same [Microsoft Azure][azure] account.
+Create a unique Azure resource group and storage accounts for Tortuga to
+prevent "cross-polination" of Tortuga-managed resources with other resources
+within the same [Microsoft Azure][azure] account.
 
 \newpage
 
