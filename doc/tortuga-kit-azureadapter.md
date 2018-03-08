@@ -64,7 +64,7 @@ necessary to create resources within the Azure environment.
 1. **Install Azure CLI 2.0**
 
     For ease of use, it is *strongly recommended* to install the Azure
-    CLI into the Tortuga (Python 2.7) environment as follows:
+    CLI into the Tortuga virtual environment as follows:
 
         /opt/tortuga/bin/pip install azure-cli
 
