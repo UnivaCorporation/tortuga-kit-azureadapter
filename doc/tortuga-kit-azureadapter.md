@@ -240,8 +240,8 @@ configuration profile.
     This is a sample, end-user modifiable bootstrap script for
     Tortuga-managed compute nodes.
 
-        cp $TORTUGA_ROOT/kits/kit-azureadapter-6.3.1-0/ubuntu_bootstrap.py.tmpl \
-            $TORTUGA_ROOT/config/
+        cfgfile=$(find $TORTUGA_ROOT/kits -name ubuntu_bootstrap.py.tmpl)
+        cp $cfgfile $TORTUGA_ROOT/config
 
     Compute nodes will not converge (join the Tortuga-managed cluster)
     if this script is not copied into place.
