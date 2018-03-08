@@ -22,7 +22,7 @@ import base64
 import shlex
 import itertools
 import datetime
-from typing import Optional, Union, NoReturn
+from typing import Optional, Union, NoReturn, List
 import gevent
 import gevent.queue
 import gevent.lock
@@ -44,6 +44,8 @@ from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.networkNotFound import NetworkNotFound
 from tortuga.db.nics import Nics
 from tortuga.db.nodes import Nodes
+from tortuga.db.hardwareProfiles import HardwareProfiles
+from tortuga.db.softwareProfiles import SoftwareProfiles
 from tortuga.resourceAdapter.utility import get_provisioning_nic, \
     get_provisioning_hwprofilenetwork, iter_provisioning_nics
 from tortuga.exceptions.tortugaException import TortugaException
@@ -114,14 +116,16 @@ class Azureadapter(ResourceAdapter):
         """Add idle node records"""
 
     def __create_node(self, session: Session, hardwareprofile,
-                      softwareprofile, generate_ip=False,
-                      override_dns_domain=None):
-        """Returns Nodes object"""
-
+                      softwareprofile,
+                      override_dns_domain=None) -> Nodes:
+        """
+        Create node record
+        """
         name = self.addHostApi.generate_node_name(
             session,
             hardwareprofile.nameFormat,
-            randomize=not generate_ip, dns_zone=self.private_dns_zone)
+            randomize=True,
+            dns_zone=self.private_dns_zone)
 
         if hardwareprofile.location != 'remote-vpn' and \
                 not override_dns_domain and \
@@ -148,45 +152,22 @@ class Azureadapter(ResourceAdapter):
 
         node.isIdle = softwareprofile is None
 
-        node.hardwareProfileId = hardwareprofile.id
-
         node.hardwareprofile = hardwareprofile
 
         if softwareprofile and not node.isIdle:
-            node.softwareProfileId = softwareprofile.id
-
             node.softwareprofile = softwareprofile
 
         node.addHostSession = self.addHostSession
 
-        internal_nic = Nics(boot=True)
-
-        if generate_ip:
-            # Get provisioning/private network
-            hwprofile_network = \
-                get_provisioning_hwprofilenetwork(hardwareprofile)
-
-            internal_nic.networkId = hwprofile_network.network.id
-            internal_nic.network = hwprofile_network.network
-            internal_nic.networkDeviceId = \
-                hwprofile_network.networkdevice.id
-            internal_nic.networkdevice = hwprofile_network.networkdevice
-
-            # IP address assigned on Tortuga provisioning network
-            internal_nic.ip = \
-                self.addHostApi.generate_provisioning_ip_address(
-                    internal_nic.network)
-
-        node.nics.append(internal_nic)
-
         return node
 
-    def __create_nodes(self, count, session: Session, hardwareprofile,
-                       softwareprofile, configDict): \
+    def __create_nodes(self, count: int, session: Session,
+                       hardwareprofile: HardwareProfiles,
+                       softwareprofile: SoftwareProfiles,
+                       configDict: dict) -> List[Nodes]: \
             # pylint: disable=unused-argument
-        """Wrapper around __create_node()
-
-        Returns list of Nodes
+        """
+        Create nodes records
         """
 
         dns_domain = None if not configDict['override_dns_domain'] else \
@@ -197,7 +178,6 @@ class Azureadapter(ResourceAdapter):
                 session,
                 hardwareprofile,
                 softwareprofile,
-                generate_ip=False,
                 override_dns_domain=dns_domain)
             for _ in range(count)
         ]
