@@ -72,7 +72,7 @@ necessary to create resources within the Azure environment.
     Windows, or MacOS.
 
     Official Microsoft documentation is
-    [available here](insall-azure-cli)
+    [available here](install-azure-cli)
 
 1. **Create a Resource Group, as Necessary**
 
