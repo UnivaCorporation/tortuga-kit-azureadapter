@@ -163,11 +163,11 @@ adapter kit included with the Tortuga distribution.
 Install the Azure resource adapter kit by running the following
 command as `root` on a Tortuga installer host:
 
-    install-kit --i-accept-the-eula kit-azureadapter-6.3.1-0.tar.bz2
+    install-kit --i-accept-the-eula kit-azureadapter-6.3.0-0.tar.bz2
 
 The Azure resource adapter is enabled as follows, again run as `root`:
 
-    enable-component -p azureadapter-6.3.1-0 management-6.3
+    enable-component -p azureadapter-6.3.0-0 management-6.3
 
 The Azure resource adapter kit is now installed and ready to be
 configured.
