@@ -226,7 +226,7 @@ configuration profile.
           - subnet_name = default
           - subscription_id = <REDACTED>
           - tenant_id = <REDACTED>
-          - cloud_init_script_template = ubuntu_bootstrap.py.tmpl
+          - user_data_script_template = ubuntu_bootstrap.py.tmpl
           - virtual_network_name = vnet1
 
 1. **Copy Example Ubuntu Bootstrap Script Into Place**
