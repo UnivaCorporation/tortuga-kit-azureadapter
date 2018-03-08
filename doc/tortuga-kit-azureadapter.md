@@ -608,23 +608,11 @@ cloud-based compute nodes:
 
 ### Networking considerations
 
-The Azure resource Adapter automatically configures an [OpenVPN][]
-virtual private network when the Tortuga installer is installed
-on-premise. The VPN is not automatically configured if the Tortuga
-installer itself is running on Azure.
+An external VPN is required for Tortuga installations in which the installer
+node is on-premise (local). This VPN must be managed independently of Tortuga.
 
-The VPN requires a network address space in which to create compute
-nodes. For a hybrid environment where the installer is on-premise and
-the compute nodes are entirely cloud-based, this network can be attached
-to a interface defined by Ethernet alias or VLAN(ie. `eth0:0`). It does
-not need to be an actual physical network connected to a physical
-Ethernet interface.
-
-To enable a *true* hybrid environment with on-premise compute nodes
-(physical and/or virtual) and cloud-based compute nodes, the network
-used for the VPN needs to be the same as the network where the local
-compute nodes are connected or network routing must be configured
-appropriately.
+Without direct network connectivitity, Azure-based compute nodes will be
+unable to properly coverge and join the Tortuga managed cluster.
 
 ### Adding Azure nodes
 
