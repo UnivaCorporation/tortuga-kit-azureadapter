@@ -11,12 +11,6 @@ such as storage accounts, virtual networks/subnets/network security groups,
 etc.  These resources must be created prior to using the Tortuga/Azure
 integration.
 
-**Note:** the Azure resource adapter requires RHEL/CentOS 7 and will not work
-on older OS versions. This is a limitation of the Microsoft Azure Python SDK
-which does not support Python 2.6 (the distribution version of Python included
-with RHEL/CentOS 6). Tortuga is, however, able to deploy RHEL/CentOS 6 compute
-nodes.
-
 Please refer to official [Microsoft Azure
 documentation](https://docs.microsoft.com/en-us/azure/) for further explanation
 of Azure terms referenced within this document.
