@@ -721,4 +721,4 @@ information on failed operations.
 [azure-ad]:           https://www.microsoft.com/en-ca/cloud-platform/azure-active-directory
 [azure-ad-app-setup]: https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-integrating-applications
 [install-azure-cli]:  https://docs.microsoft.com/en-us/cli/azure/install-azure-cli
-
+[cloud_init]:         http://cloudinit.readthedocs.org              "cloud-init"
