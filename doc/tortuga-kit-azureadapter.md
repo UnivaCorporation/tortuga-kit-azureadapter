@@ -20,7 +20,7 @@ of Azure terms referenced within this document.
 Before using Tortuga with the [Microsoft Azure][azure] resource adapter, it is
 necessary to create resources within the Azure environment.
 
-1. **Configure an Application in Azure Active Directory**
+1. **Configure Application in Azure Active Directory**
 
     This requires setting up an application under
     [Azure Active Directory][azure-ad] and creating an API key for
@@ -74,7 +74,7 @@ necessary to create resources within the Azure environment.
     Official Microsoft documentation is
     [available here](install-azure-cli)
 
-1. **Create a Resource Group, as Necessary**
+1. **Create Resource Group**
 
     Tortuga can use an existing Azure resource group or a new resource
     group can be created. In this example, the resource group is named
@@ -85,7 +85,7 @@ necessary to create resources within the Azure environment.
     **Hint:** use `az account list-locations --query "[].name"` to
     query available locations.
 
-1. **Create a Virtual Network in Resource group, as Necessary**
+1. **Create Virtual Network**
 
     A virtual network must exist in the resource group, if not it can
     be created. To continue with our example, the virtual network will
@@ -95,7 +95,7 @@ necessary to create resources within the Azure environment.
         az network vnet create --resource-group uc-cluster \
             --location canadacentral --name vnet1
 
-1. **Create a Network Security Group, as Necessary**
+1. **Create Network Security Group**
 
     A network security group must exist in the resource group, if not
     it can be created. To continue with our example, the network
@@ -114,17 +114,7 @@ necessary to create resources within the Azure environment.
             --destination-port-range 22 --access Allow \
             --protocol Tcp --description "Allow incoming ssh"
 
-    If you are setting up a hybrid Tortuga environment and using the
-    built-in OpenVPN point-to-point VPN support, you must also allow
-    incoming OpenVPN (`1194/udp`) connections.
-
-        az network nsg rule create --resource-group uc-cluster \
-            --nsg-name tortugansg --name openvpn --priority 100 \
-            --destination-address-prefix "*" \
-            --destination-port-range 1194 --access Allow \
-            --protocol Udp --description "Allow incoming OpenVPN"
-
-1. **Create a Subnet in the Virtual Network, as Necessary**
+1. **Create Subnet in Virtual Network**
 
    The virtual network must have a subnet configured. To continue with
    our example, the subnet for `vnet1` (created in previous steps)
@@ -136,7 +126,7 @@ necessary to create resources within the Azure environment.
             --address-prefix 10.0.0.0/24 \
             --network-security-group tortugansg
 
-1. **Create a Storage Account in the Resource, as Necessary**
+1. **Create Storage Account**
 
    A storage account must exist in the resource group. To continue
    with our example, the storage network will be called
@@ -180,7 +170,7 @@ location, VM size, virtual network, subnet, security group, etc.
 Use the `adapter-mgmt` tool to create/update the resource adapter
 configuration profile.
 
-1. **Create the `default` Resource Adapter Configuration Profile**
+1. **Create `default` Resource Adapter Configuration Profile**
 
     This example configures the Azure resource adapter to use Ubuntu
     16.04 (Xenial) compute nodes.
@@ -201,11 +191,11 @@ configuration profile.
             -s image_urn=Canonical:UbuntuServer:16.04.0-LTS:latest \
             -s user_data_script_template=ubuntu_bootstrap.py.tmpl
 
-    **Note:** the CentOS images provided by OpenLogic do not enable
+    **Note:** the default CentOS images provided by OpenLogic do not enable
     `cloud-init` or the Microsoft Azure Linux Guest Agent
     (aka *waagent*). This prevents them for being used as
     Tortuga-managed compute nodes as there is no mechanism to
-    automatically run a boot script.
+    automatically run a boot script. See [Cloud-init support for virtual machines in Azure](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/using-cloud-init) for further information.
 
     Resource adapter configuration profiles can be updated using
     `adapter-mgmt update`.
@@ -243,13 +233,18 @@ configuration profile.
     Compute nodes will not converge (join the Tortuga-managed cluster)
     if this script is not copied into place.
 
-## Creating an Azure Hardware Profile
+## Creating Azure Hardware Profile
 
 Create a hardware profile named `azure` for all Azure nodes:
 
-    create-hardware-profile --name azure
-    update-hardware-profile --name azure --resource-adapter azure \
-        --location remote
+```shell
+create-hardware-profile --name azure
+update-hardware-profile --name azure --resource-adapter azure \
+    --location remote
+```
+
+Hardware profile names are arbitrary and do *not* need to match the resource
+adapter name.
 
 ## Azure Resource Tagging
 
@@ -538,10 +533,13 @@ DNS resolution. As a result, it is necessary to enable the built-in
 Tortuga DNS server as follows:
 
 ```shell
-enable-component -p dns
+enable-component --no-sync -p dns
 genconfig dns
 /opt/puppetlabs/bin/puppet agent --onetime --no-daemonize --verbose
 ```
+
+Note: the `genconfig` command is limited to being run on the Tortuga
+installer. It cannot be used from remote.
 
 Refer to the section in this manual on configuring and/or customizing
 the built-in Tortuga DNS server for more information.
@@ -572,9 +570,11 @@ reverse DNS resolution for Tortuga managed nodes.
 Override the default Azure DNS settings by setting `override_dns_domain`
 in the Azure resource adapter configuration:
 
-    adapter-mgmt update --resource-adapter azure --profile default \
-        -s override_dns_domain=true \
-        -s dns_domain cloud.univa.com
+```shell
+adapter-mgmt update --resource-adapter azure --profile default \
+    -s override_dns_domain=true \
+    -s dns_domain cloud.univa.com
+```
 
 If `override_dns_domain` is enabled (set to `true`) and `dns_domain` is
 **not** set, the global Tortuga private DNS domain will be used. This
@@ -720,7 +720,7 @@ There are currently no Azure-specific debug options within Tortuga. Due
 to the newness of the Azure resource adapter, debug logging in Tortuga
 is currently verbose by default.
 
-Refer to the Tortuga log file (`/var/log/tortuga`) for further
+Refer to the Tortuga log file (`/var/log/tortugawsd`) for further
 information on failed operations.
 
 \newpage
