@@ -27,7 +27,7 @@ necessary to create resources within the Azure environment.
     the resource adapter to use.
 
     A helpful tutorial can be found in the following article:
-    [Integrating applications with Azure Active Directory][azure-ad-setup]
+    [Integrating applications with Azure Active Directory][azure-ad-app-setup]
 
     *Note: Make sure you copy the key generated in this step, as you
     will need it for step 2.*
