@@ -20,21 +20,12 @@ of Azure terms referenced within this document.
 Before using Tortuga with the [Microsoft Azure][azure] resource adapter, it is
 necessary to create resources within the Azure environment.
 
-<<<<<<< HEAD
 ### Credentials
-=======
-1. **Configure Application in Azure Active Directory**
->>>>>>> upstream/devel
 
 The Azure resource adapter requires the following credentials, which
 will be created during the setup process below:
 
-<<<<<<< HEAD
 - **Client ID**
-=======
-    A helpful tutorial can be found in the following article:
-    [Integrating applications with Azure Active Directory][azure-ad-app-setup]
->>>>>>> upstream/devel
 
   This is the *Application ID* that was generated when creating the
   application in Active Directory. To find this value in the Azure
@@ -75,7 +66,6 @@ will be created during the setup process below:
     Official Microsoft documentation is
     [available here](install-azure-cli)
 
-<<<<<<< HEAD
 1. **Login to Azure Using the CLI**
 
     Type in the command below and follow the instructions to login.
@@ -110,10 +100,7 @@ will be created during the setup process below:
 
         az ad sp create --id abcd64ef-1ghi-4j39-k715-l754191m8442
 
-1. **Create a Resource Group, as Necessary**
-=======
 1. **Create Resource Group**
->>>>>>> upstream/devel
 
     Tortuga can use an existing Azure resource group or a new resource
     group can be created. In this example, the resource group is named
@@ -124,7 +111,6 @@ will be created during the setup process below:
     **Hint:** use `az account list-locations --query "[].name"` to
     query available locations.
 
-<<<<<<< HEAD
 1. **Grant the Application Permissions Within the Resource Group**
 
     In order for the resource adapter to be able to create resources
@@ -141,10 +127,7 @@ will be created during the setup process below:
     in the resource group, it must be granted full permisison. This
     must be done in the Azure web UI.
 
-1. **Create a Virtual Network in Resource group, as Necessary**
-=======
 1. **Create Virtual Network**
->>>>>>> upstream/devel
 
     A virtual network must exist in the resource group, if not it can
     be created. To continue with our example, the virtual network will
