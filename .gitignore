@@ -4,3 +4,4 @@ dist/
 man/**/*.8
 *.egg-info/
 **/puppet_modules/**/pkg/
+__pycache__
