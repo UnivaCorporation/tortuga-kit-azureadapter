@@ -1,0 +1,29 @@
+language: python
+python:
+- '3.6'
+services:
+- docker
+env:
+- TORTUGA_BUILD_DOCKER="true"
+before_install:
+- docker pull puppet/puppet-agent
+install:
+- pip install tox
+- git clone https://github.com/UnivaCorporation/tortuga.git tortuga-base
+- cd tortuga-base/
+- pip install -r requirements.txt
+- paver build
+- cd ../
+- build-kit
+script:
+- echo "Done"
+deploy:
+  provider: releases
+  api_key:
+    secure: tIFYXUKsE4gyCLAu8uER/vV5LUt9bn00H6Z9AFenbcWbduzB9DODROjqE6OLQEYFXHSzehOfNInCUXpKvzsge8XJKtMU/+ukPFQ2siMh7VpaBRFpKcHEwfLXXx97OjEDzO+EBFewwL52kEfzXTnEoacAnWbZl592QIKUCHRg793/vipsFtFvtbrRYXND/9IdCebjO8AkRH/JQmCt7TfotktEiTJgg8uqMD6mGxmSXVMwF9FsuqL99/4MKLCZP6BgiZMAWMAL0/xAISbDSOXVCNOLM18YyLx91wFaJ5VDwFEtA/Ku6il9oi3FQb66DUGBp2zHa6jAIX+YqpxzIJ86m1QuCBaCKJ8x+vznrH9laBt9yDcjsKw5XlPbN2UENMC4gwlCxqGG+/69zvbKwU/W1sDmQ8OAx9ffytDGdC5/f0Tzdr48BHQE2JL+ZgHuqkMHLSjXlUdaGdAyBsaDBVTcYXlzDtQR3l1qbHtAq2WFZwCnzrF7jGSApez62TOg6xiNBsBkkz2nUP2n8/KLwv1D8wUjosx/Bxe2a9U3MqvmK4333L1I0ZFL/yOovoJN+CL162TG2iDBodTyhT0S+kVPjQNnlI4YE+55QJQzJLxRdsBIfQfUdE2wfmwFntn/fbqJDFGWTI+UaRKFQ5pwIUhJWsKUlvnxrLCYLMCl0d6cosI=
+  file_glob: true
+  file: "dist/kit-azureadapter*.tar.bz2"
+  skip_cleanup: true
+  on:
+    all_branches: true
+    tags: true
