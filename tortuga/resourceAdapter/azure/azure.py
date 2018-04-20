@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=no-member
-
 import base64
 import datetime
 import itertools
@@ -43,7 +41,6 @@ from tortuga.db.models.node import Node
 from tortuga.db.models.softwareProfile import SoftwareProfile
 from tortuga.exceptions.configurationError import ConfigurationError
 from tortuga.exceptions.operationFailed import OperationFailed
-# from tortuga.exceptions.commandFailed import CommandFailed
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
 from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter
@@ -162,7 +159,7 @@ class Azureadapter(ResourceAdapter):
     def __create_nodes(self, count: int, session: Session,
                        hardwareprofile: HardwareProfile,
                        softwareprofile: SoftwareProfile,
-                       configDict: dict) -> List[Nodes]: \
+                       configDict: dict) -> List[Node]: \
             # pylint: disable=unused-argument
         """
         Create nodes records
