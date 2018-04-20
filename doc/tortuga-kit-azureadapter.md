@@ -20,46 +20,38 @@ of Azure terms referenced within this document.
 Before using Tortuga with the [Microsoft Azure][azure] resource adapter, it is
 necessary to create resources within the Azure environment.
 
-1. **Configure Application in Azure Active Directory**
+### Credentials
 
-    This requires setting up an application under
-    [Azure Active Directory][azure-ad] and creating an API key for
-    the resource adapter to use.
+The Azure resource adapter requires the following credentials, which
+will be created during the setup process below:
 
-    A helpful tutorial can be found in the following article:
-    [Integrating applications with Azure Active Directory][azure-ad-app-setup]
+- **Client ID**
 
-    *Note: Make sure you copy the key generated in this step, as you
-    will need it for step 2.*
+  This is the *Application ID* that was generated when creating the
+  application in Active Directory. To find this value in the Azure
+  web portal, click on *Azure Active Directory* -> *App
+  Registrations*.
 
-1. **Assemble Your Azure Credentials**
+- **Subscription ID**
 
-    The Azure resource adapter requires the following:
+  This is the *Subscription ID* for your Azure subscription, which
+  is determined from the account collection step below. To
+  find this value in the Azure portal, go to the search box at
+  the top of the screen any type in "subscription", click on the
+  subscription item in the drop-down list.
 
-    - **Client ID**
+- **Tenant ID**
 
-      This is the *Application ID* that was generated when creating the
-      application in Active Directory. To find this value, in the
-      Azure portal, click on *Azure Active Directory* -> *App
-      Registrations*.
+  This is the *Directory ID* for your Azure Active Directory
+  instance, and is determined in the account collection step below.
+  To find this value in the Azure portal, click on
+  *Azure Active Directory* -> *Properties*.
 
-    - **Subscription ID**
+- **Secret**
 
-      This is the *Subscription ID* for your Azure subscription. To
-      find this value, in the Azure portal, go to the search box at
-      the top of the screen any type in "subscription", click on the
-      subscription item in the drop-down list.
+  The password used when creating the application below.
 
-    - **Tenant ID**
-
-      This is the *Directory ID* for your Azure Active Directory
-      instance. To find this value, in the Azure portal, click on
-      *Azure Active Directory* -> *Properties*.
-
-    - **Secret**
-
-      The key generated when creating the application in the previous
-      step.
+### Command Line Setup
 
 1. **Install Azure CLI 2.0**
 
@@ -74,6 +66,40 @@ necessary to create resources within the Azure environment.
     Official Microsoft documentation is
     [available here](install-azure-cli)
 
+1. **Login to Azure Using the CLI**
+
+    Type in the command below and follow the instructions to login.
+
+        az login
+
+2. **Collect Account Information**
+
+    Type in the following command.
+
+        az account
+
+    In the data that returns, you will need two things: the `id`
+    (which is the subscription ID) an the `tenantId`. Copy these
+    values down for future reference.
+
+1. **Create an Application in Active Directory**
+
+    An application needs to be registered in Azure Active Directory
+    for the resource adapter. In this example, the application is
+    named `uc-application` and the API password will be
+    `MySecretPassword123`.
+
+        az ad app create --display-name uc-application --native-app false --identifier-uris http://uc-applicaiton.example.com/ --key-type Password --password MySecretPassword123
+
+1. **Create an Active Directory Service Principal**
+
+    In the output of the previous step, the output will show an
+    `appId`. In our example the `appId` returned is
+    `abcd64ef-1ghi-4j39-k715-l754191m8442`. Use the value of the
+    `appId` in the following command:
+
+        az ad sp create --id abcd64ef-1ghi-4j39-k715-l754191m8442
+
 1. **Create Resource Group**
 
     Tortuga can use an existing Azure resource group or a new resource
@@ -84,6 +110,22 @@ necessary to create resources within the Azure environment.
 
     **Hint:** use `az account list-locations --query "[].name"` to
     query available locations.
+
+1. **Grant the Application Permissions Within the Resource Group**
+
+    In order for the resource adapter to be able to create resources
+    in Azure, the Application needs to have the correct permissions
+    set in the resource group. In our case, for the sake of simplicity,
+    we will grant full permissions (i.e. Onwer). We use the `appId`
+    (as described above) as the assignee.
+
+        az role assignment create --assignee abcd64ef-1ghi-4j39-k715-l754191m8442 --role Owner --resource-group uc-cluster
+
+1. **Grant the Application Owner Priveleges on the Resource Group***
+
+    In order for the applicaiton to be able to use the resources
+    in the resource group, it must be granted full permisison. This
+    must be done in the Azure web UI.
 
 1. **Create Virtual Network**
 
