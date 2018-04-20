@@ -14,4 +14,4 @@
 
 __import__('pkg_resources').declare_namespace(__name__)
 
-from .azure import Azureadapter
+from .azureadapter import AzureAdapter

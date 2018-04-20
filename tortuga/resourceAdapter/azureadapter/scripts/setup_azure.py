@@ -830,8 +830,7 @@ class ResourceAdapterSetup:
                 'subscription_id': self._az_account['id'],
                 'client_id': self._selected_application['appId'],
                 'tenant_id': self._az_account['tenantId'],
-                'secret': '"{}"'.format(
-                    self._selected_application['password']),
+                'secret': self._selected_application['password'],
                 'resource_group': self._selected_resource_group['name'],
                 'storage_account': self._selected_storage_account['name'],
                 'location': self._selected_resource_group['location'],

@@ -53,7 +53,7 @@ class AzureOperationTimeout(TortugaException):
     """Azure operation timed out"""
 
 
-class Azureadapter(ResourceAdapter):
+class AzureAdapter(ResourceAdapter):
     __adaptername__ = 'azure'
 
     DEFAULT_CREATE_TIMEOUT = 900
