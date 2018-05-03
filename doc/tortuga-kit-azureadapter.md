@@ -446,19 +446,6 @@ The following Azure resource adapter configuration settings are
 
     Space-separated "key=value" pairs.
 
-* `vpn`
-
-    Default is `false` (disabled)
-
-    Enable point-to-point VPN connections between Tortuga installer
-    using OpenVPN.
-
-    VPN **should not** be enabled when the Tortuga installer is hosted
-    on Azure.
-
-    Do not enable `vpn` setting if using an externally managed
-    site-to-site VPN solution.
-
 * `override_dns_domain`
 
     Valid values: "true" or "false"
@@ -558,8 +545,7 @@ Tortuga-managed cluster.
 ## Azure security group requirements
 
 For hybrid Tortuga installations, it is recommended the network security
-group minimally allows `ssh` (22/tcp) connections. If using the built-in
-point-to-point OpenVPN, it is also required to allow port 1193/udp.
+group minimally allows `ssh` (22/tcp) connections.
 
 Azure network security groups are created with open access for outbound
 network traffic and unrestricted connectivity to virtual machines within
