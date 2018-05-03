@@ -19,9 +19,9 @@ setup(
     name='tortuga-azure-adapter',
     version='6.3.0',
     url='http://univa.com',
-    author='Univa Corp',
-    author_email='info@univa.com',
-    license='Commercial',
+    author='Univa Corporation',
+    author_email='engineering@univa.com',
+    license='Apache 2.0',
     packages=find_packages(exclude=['tortuga_kits']),
     namespace_packages=[
         'tortuga',
@@ -29,13 +29,15 @@ setup(
     ],
     zip_safe=False,
     install_requires=[
-        'azure-common==1.1.4',
-        'azure-mgmt-compute==0.33.1rc1',
-        'azure-mgmt-storage==0.30.0',
-        'azure-mgmt-network==0.30.0',
-        'azure-storage==0.33.0',
+        'azure-cli',
+        'colorama',
         'gevent',
         'msrestazure<0.5.0',
         'Jinja2',
-    ]
+    ],
+    entry_points = {
+        'console_scripts': [
+            'setup-azure=tortuga.resourceAdapter.azure.scripts.setup_azure:main'
+        ]
+    }
 )

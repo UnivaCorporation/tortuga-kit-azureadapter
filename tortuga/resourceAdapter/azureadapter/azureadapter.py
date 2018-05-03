@@ -14,41 +14,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=no-member
-
+import base64
+import datetime
+import itertools
 import os.path
 import random
-import base64
 import shlex
-import itertools
-import datetime
-from typing import Optional, Union, NoReturn, List
+from typing import List, NoReturn, Optional, Union
+
 import gevent
-import gevent.queue
 import gevent.lock
-from sqlalchemy.orm.session import Session
+import gevent.queue
 from jinja2 import Environment, FileSystemLoader
-from azure.common.credentials import ServicePrincipalCredentials
+from sqlalchemy.orm.session import Session
+
 from azure.common import AzureMissingResourceHttpError
+from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.storage.blob import BlockBlobService
 from msrestazure import azure_exceptions
-
-from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter
+from tortuga.db.models.hardwareProfile import HardwareProfile
+from tortuga.db.models.nic import Nic
+from tortuga.db.models.node import Node
+from tortuga.db.models.softwareProfile import SoftwareProfile
 from tortuga.exceptions.configurationError import ConfigurationError
-# from tortuga.exceptions.commandFailed import CommandFailed
-from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.operationFailed import OperationFailed
-from tortuga.exceptions.networkNotFound import NetworkNotFound
-from tortuga.db.nics import Nics
-from tortuga.db.nodes import Nodes
-from tortuga.db.hardwareProfiles import HardwareProfiles
-from tortuga.db.softwareProfiles import SoftwareProfiles
-from tortuga.resourceAdapter.utility import get_provisioning_nic, \
-    get_provisioning_hwprofilenetwork, iter_provisioning_nics
+from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
+from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter
 
 
 AZURE_ASYNC_OP_TIMEOUT = 900
@@ -58,7 +53,7 @@ class AzureOperationTimeout(TortugaException):
     """Azure operation timed out"""
 
 
-class Azureadapter(ResourceAdapter):
+class AzureAdapter(ResourceAdapter):
     __adaptername__ = 'azure'
 
     DEFAULT_CREATE_TIMEOUT = 900
@@ -117,7 +112,7 @@ class Azureadapter(ResourceAdapter):
 
     def __create_node(self, session: Session, hardwareprofile,
                       softwareprofile,
-                      override_dns_domain=None) -> Nodes:
+                      override_dns_domain=None) -> Node:
         """
         Create node record
         """
@@ -146,7 +141,7 @@ class Azureadapter(ResourceAdapter):
                 # Handle adapter-specific DNS domain (ie. multi-cloud)
                 name = '{0}.{1}'.format(hostname, override_dns_domain)
 
-        node = Nodes(name=name)
+        node = Node(name=name)
 
         node.state = 'Launching'
 
@@ -162,9 +157,9 @@ class Azureadapter(ResourceAdapter):
         return node
 
     def __create_nodes(self, count: int, session: Session,
-                       hardwareprofile: HardwareProfiles,
-                       softwareprofile: SoftwareProfiles,
-                       configDict: dict) -> List[Nodes]: \
+                       hardwareprofile: HardwareProfile,
+                       softwareprofile: SoftwareProfile,
+                       configDict: dict) -> List[Node]: \
             # pylint: disable=unused-argument
         """
         Create nodes records
@@ -435,7 +430,7 @@ class Azureadapter(ResourceAdapter):
     def __add_active_nodes(self, addNodesRequest, dbSession,
                            hardwareprofile, softwareprofile):
         """
-        Returns list of Nodes
+        Returns list of Node
 
         Raises:
             ResourceNotFound
@@ -638,7 +633,7 @@ class Azureadapter(ResourceAdapter):
         self.__common_delete_nodes(reqs)
 
         for node_request in node_requests:
-            # Remove Nodes record and associated Nics from database
+            # Remove Nodes record and associated nics from database
             self.__cleanup_node(dbSession, node_request['node'])
 
             dbSession.commit()
@@ -660,7 +655,7 @@ class Azureadapter(ResourceAdapter):
 
     def __cleanup_node(self, session, node): \
             # pylint: disable=no-self-use
-        """Remove Nodes and associated Nics from database"""
+        """Remove Nodes and associated nics from database"""
 
         # Ensure session node cache entry is removed for failed launch
         self.addHostApi.clear_session_node(node)
@@ -858,7 +853,7 @@ dns_nameservers = %(dns_nameservers)s
 
         return result
 
-    def __create_vm(self, session, db_session: Session, node: Nodes,
+    def __create_vm(self, session, db_session: Session, node: Node,
                     custom_data: Optional[Union[str, None]] = None,
                     tags=None) -> NoReturn:
         """Raw Azure create VM operation"""
@@ -873,7 +868,7 @@ dns_nameservers = %(dns_nameservers)s
 
         # Associate internal nic with node
         node.nics.append(
-            Nics(ip=nic.ip_configurations[0].private_ip_address, boot=True))
+            Nic(ip=nic.ip_configurations[0].private_ip_address, boot=True))
 
         # ...and commit to database
         db_session.commit()
@@ -1698,7 +1693,7 @@ dns_nameservers = %(dns_nameservers)s
                 return result.number_of_cores
 
         # Unable to determine VM size, use default
-        self.getLogger().warn(
+        self.getLogger().warning(
             'Unrecognized Azure VM size [{0}]. Using default core'
             ' count {1:d}'.format(vm_size, default))
 
