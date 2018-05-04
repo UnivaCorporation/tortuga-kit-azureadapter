@@ -37,7 +37,7 @@ setup(
     ],
     entry_points = {
         'console_scripts': [
-            'setup-azure=tortuga.resourceAdapter.azure.scripts.setup_azure:main'
+            'setup-azure=tortuga.resourceAdapter.azureadapter.scripts.setup_azure:main'
         ]
     }
 )
