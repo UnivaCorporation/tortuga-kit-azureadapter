@@ -3,18 +3,10 @@ python:
 - '3.6'
 services:
 - docker
-env:
-- TORTUGA_BUILD_DOCKER="true"
 before_install:
-- docker pull puppet/puppet-agent
+- docker pull univa/tortuga-build-kit:stable
 install:
-- pip install tox
-- git clone https://github.com/UnivaCorporation/tortuga.git tortuga-base
-- cd tortuga-base/
-- pip install -r requirements.txt
-- paver build
-- cd ../
-- build-kit
+- docker run -it --rm -v `pwd`:/kit-src univa/tortuga-build-kit:stable
 script:
 - echo "Done"
 deploy:
