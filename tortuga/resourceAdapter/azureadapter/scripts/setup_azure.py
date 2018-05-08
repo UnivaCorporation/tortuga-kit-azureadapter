@@ -241,12 +241,6 @@ class ResourceAdapterSetup(TortugaCli):
             else:
                 raise
 
-        #
-        # Give Azure some time to finish doing stuff on the back end,
-        # otherwise we end up with errors and timeouts...
-        #
-        time.sleep(5)
-
         return result
 
     def _get_current_compute_node(self) -> dict:
@@ -525,12 +519,28 @@ class ResourceAdapterSetup(TortugaCli):
         """
         print('Assigning role...')
 
-        return self._run_az([
-            'role', 'assignment', 'create',
-            '--assignee',  self._selected_application['appId'],
-            '--role', 'Owner',
-            '--resource-group', self._selected_resource_group['name']
-        ])
+        count = 5
+
+        #
+        # This operation can fail if the service principal is not finshed
+        # being created on the application
+        #
+        while True:
+            try:
+                return self._run_az([
+                    'role', 'assignment', 'create',
+                    '--assignee',  self._selected_application['appId'],
+                    '--role', 'Owner',
+                    '--resource-group', self._selected_resource_group['name']
+                ])
+            except Exception as e:
+                if count:
+                    print(self.format_error(
+                        'Role assignment failed, trying again...'))
+                    time.sleep(5)
+                    count -= 1
+                else:
+                    raise e
 
     def _get_virtual_networks(self) -> List[dict]:
         """
