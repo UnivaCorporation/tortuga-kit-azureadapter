@@ -1,31 +1,42 @@
 import colorama
 from configparser import ConfigParser
+import datetime
+import gettext
 import ipaddress
 import json
 import re
 import secrets
 import subprocess
+import time
 from typing import Dict, List
 from urllib.parse import urlparse
 
+from tortuga.cli.tortugaCli import TortugaCli
 from tortuga.db.dbManager import DbManager
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.resourceAdapterConfiguration.api import \
     ResourceAdapterConfigurationApi
 
 
+_ = gettext.gettext
+
+
 class APIError(Exception):
     pass
 
 
-class ResourceAdapterSetup:
-    debug = False
+class ResourceAdapterSetup(TortugaCli):
+    verbose = False
+    interactive = False
     adapter_type = 'azure'
 
     def __init__(self):
+        super().__init__()
+
         self._cli_path: str = self._find_cli()
 
         self._az_account: dict = {}
+        self._az_compute_node: dict = {}
         self._az_applications: List[dict] = []
         self._az_resource_groups: List[dict] = []
         self._az_role_assignments: List[dict] = []
@@ -45,6 +56,32 @@ class ResourceAdapterSetup:
         self._selected_image: dict = None
 
         self._run_completed = False
+
+    def parseArgs(self, usage=None):
+        option_group_name = _('Setup options')
+        self.addOptionGroup(option_group_name, '')
+
+        self.addOptionToGroup(option_group_name,
+                              '-v', '--verbose', dest='verbose',
+                              default=False, action='store_true',
+                              help='Verbose output')
+
+        self.addOptionToGroup(option_group_name,
+                              '-i', '--interactive', dest='interactive',
+                              default=False, action='store_true',
+                              help='Interactive setup (not automatic)')
+
+        super().parseArgs(usage=usage)
+
+    def runCommand(self):
+        self.parseArgs()
+        args = self.getArgs()
+        self.verbose = args.verbose
+        self.interactive = args.interactive
+
+        config: Dict[str, str] = self.get_config()
+        self._write_config_to_file(config, 'default')
+        self._write_config_to_db(config, 'default')
 
     def format(self, msg: str, *args, **kwargs):
         """
@@ -97,11 +134,6 @@ class ResourceAdapterSetup:
         """
         kwargs['forecolor'] = colorama.Fore.RED
         return self.format(msg, *args, **kwargs)
-
-    def run(self):
-        config: Dict[str, str] = self.get_config()
-        self._write_config_to_file(config, 'default')
-        self._write_config_to_db(config, 'default')
 
     def _write_config_to_file(self, adapter_cfg: Dict[str, str],
                               profile: str):
@@ -159,7 +191,7 @@ class ResourceAdapterSetup:
         :return str:          the result
 
         """
-        if self.debug:
+        if self.verbose:
             print(' '.join(cmd))
 
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
@@ -171,7 +203,7 @@ class ResourceAdapterSetup:
             raise Exception(err)
 
         result = stdout.decode().strip()
-        if self.debug:
+        if self.verbose:
             print(result)
 
         return result
@@ -209,6 +241,37 @@ class ResourceAdapterSetup:
             else:
                 raise
 
+        #
+        # Give Azure some time to finish doing stuff on the back end,
+        # otherwise we end up with errors and timeouts...
+        #
+        time.sleep(5)
+
+        return result
+
+    def _get_current_compute_node(self) -> dict:
+        """
+        Gets the current compute node metadata.
+
+        :return: the current compute node metadata if available,
+                 otherwise {}
+
+        """
+        print('Getting current compute node metadata...')
+
+        cmd = [
+            'curl',
+            '--silent',
+            '--connect-timeout', '5',
+            '--header', 'Metadata:true',
+            "http://169.254.169.254/metadata/instance?api-version=2017-08-01"
+        ]
+
+        try:
+            result = json.loads(self._run_cmd(cmd))
+        except Exception as ex:
+            result = {}
+
         return result
 
     def _get_account(self) -> dict:
@@ -239,12 +302,20 @@ class ResourceAdapterSetup:
         :return dict: the created application
 
         """
-        name = ''
+        key = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+
+        if not self.interactive:
+            name = 'tortuga-{}'.format(key)
+        else:
+            name = ''
         while not name:
             name = input(self.format('Application name: '))
             name = name.strip()
 
-        url = ''
+        if not self.interactive:
+            url = 'https://univa.com/tortuga/{}'.format(key)
+        else:
+            url = ''
         while not url_valid(url):
             url = input(self.format('Application URL (a unique URI): '))
 
@@ -297,6 +368,27 @@ class ResourceAdapterSetup:
         print('Getting resource groups...')
 
         return self._run_az(['group', 'list'])
+
+    def _select_resource_group(self) -> dict:
+        """
+        Selects the resource group.
+
+        :return:
+
+        """
+        if self._az_compute_node:
+            for resource_group in self._az_resource_groups:
+                if resource_group['name'] == \
+                        self._az_compute_node['compute']['resourceGroupName']:
+                    print(self.format('Selected resource group: {}',
+                                      resource_group['name']))
+                    return resource_group
+
+        #
+        # If we get this far, a resource group was not found, and thus
+        # we need to ask the user to pick one
+        #
+        return self._select_object('resource group', 'name')
 
     def _create_resource_group(self):
         """
@@ -353,6 +445,15 @@ class ResourceAdapterSetup:
         resource group.
 
         """
+        if not self.interactive:
+            #
+            # If this is a fully automated session, then just go ahead
+            # and perform the role assignment without asking
+            #
+            if not len(self._az_role_assignments):
+                self._assign_owner_role()
+            return
+
         print(self.format_white('----------'))
 
         if not len(self._az_role_assignments):
@@ -612,7 +713,12 @@ class ResourceAdapterSetup:
         :return dict: the created storage account
 
         """
-        name = ''
+        if not self.interactive:
+            name = 'tortuga{}'.format(
+                datetime.datetime.now().strftime('%Y%m%d%H%M%S'),
+            )
+        else:
+            name = ''
         while not storage_name_valid(name):
             name = input(
                 self.format(
@@ -655,11 +761,52 @@ class ResourceAdapterSetup:
             '--location', self._selected_resource_group['location']
         ])
 
-    def _select_image(self) -> dict:
-        print('----------')
+    def _select_vm_size(self) -> dict:
+        """
+        Selects the vm size.
 
-        urn: str = ''
-        image: dict = None
+        :return: the selected vm size
+
+        """
+        if self._az_compute_node:
+            for vm_size in self._az_vm_sizes:
+                if vm_size['name'] == \
+                        self._az_compute_node['compute']['vmSize']:
+                    print(self.format('Selected vm size: {}',
+                                      vm_size['name']))
+                    return vm_size
+
+        return self._select_object('vm_size', 'name', create=False)
+
+    def _select_image(self) -> dict:
+        """
+        Selects the image to use as the basis for compute nodes.
+
+        :return: the image data
+
+        """
+        #
+        # If not interactive, then use the same URN as the installer
+        # node
+        #
+        if not self.interactive and self._az_compute_node:
+            urn = '{}:{}:{}:{}'.format(
+                self._az_compute_node['compute']['publisher'],
+                self._az_compute_node['compute']['offer'],
+                self._az_compute_node['compute']['sku'],
+                self._az_compute_node['compute']['version']
+            )
+            image: dict = self._get_image(urn)
+            if not image:
+                print(
+                    self.format_error('The default URN is not valid: {}', urn)
+                )
+                urn = ''
+
+        else:
+            print('----------')
+            urn = ''
+            image: dict = None
 
         while not urn:
             urn = input(self.format('Enter the VM image URN: ')).strip()
@@ -668,7 +815,7 @@ class ResourceAdapterSetup:
             # Attempt to get the image
             #
             try:
-                image: dict = self._get_image(urn)
+                image = self._get_image(urn)
             except Exception:
                 pass
 
@@ -676,7 +823,7 @@ class ResourceAdapterSetup:
             # If there is no image, then the URN is invalid
             #
             if not image:
-                print(self.format_error('That URN is not valid.'))
+                print(self.format_error('The URN is not valid: {}', urn))
                 urn = ''
 
         #
@@ -687,7 +834,7 @@ class ResourceAdapterSetup:
         return image
 
     def _get_image(self, urn) -> dict:
-        print('Getting the image details...')
+        print('Getting the image details for {}...'.format(urn))
 
         return self._run_az([
             'vm', 'image', 'show',
@@ -699,17 +846,30 @@ class ResourceAdapterSetup:
         Runs the wizard.
 
         """
+        select_first = not self.interactive
+
         #
         # Get the account information
         #
         self._az_account: dict = self._get_account()
 
         #
+        # Gets the current compute node
+        #
+        self._az_compute_node: dict = self._get_current_compute_node()
+
+        #
         # Select the application
         #
         self._az_applications = self._get_applications()
-        self._selected_application = self._select_object('application',
-                                                         'displayName')
+        if self.interactive:
+            self._selected_application = self._select_object(
+                'application', 'displayName')
+        else:
+            self._selected_application = self._create_application()
+            print(self.format('Selected application: {}',
+                              self._selected_application['displayName']))
+
         password = self._selected_application.get('password', None)
         if not password:
             while not password:
@@ -722,8 +882,11 @@ class ResourceAdapterSetup:
         # Select the resource group
         #
         self._az_resource_groups = self._get_resource_groups()
-        self._selected_resource_group = self._select_object('resource group',
-                                                            'name')
+        if self.interactive:
+            self._selected_resource_group = self._select_object(
+                'resource group', 'name')
+        else:
+            self._selected_resource_group = self._select_resource_group()
 
         #
         # Check resource group permissions
@@ -736,34 +899,38 @@ class ResourceAdapterSetup:
         #
         self._az_virtual_networks = self._get_virtual_networks()
         self._selected_virtual_network = self._select_object(
-            'virtual network', 'name')
+            'virtual network', 'name', select_first=select_first)
 
         #
         # Select the network security group
         #
         self._az_network_security_groups = self._get_network_security_groups()
         self._selected_network_security_group = self._select_object(
-            'network security group', 'name')
+            'network security group', 'name', select_first=select_first)
 
         #
         # Select the subnet
         #
         self._az_subnets = self._get_subnets()
-        self._selected_subnet = self._select_object('subnet', 'name')
+        self._selected_subnet = self._select_object(
+            'subnet', 'name', select_first=select_first)
 
         #
         # Select the storage account
         #
         self._az_storage_accounts = self._get_storage_accounts()
         self._selected_storage_account = self._select_object(
-            'storage account', 'name')
+            'storage account', 'name', select_first=select_first)
 
         #
         # Select VM size
         #
         self._az_vm_sizes = self._get_vm_sizes()
-        self._selected_vm_size = self._select_object('vm_size', 'name',
-                                                     create=False)
+        if not self.interactive:
+            self._selected_vm_size = self._select_vm_size()
+        else:
+            self._selected_vm_size = self._select_object(
+                'vm_size', 'name', create=False)
 
         #
         # Select image
@@ -777,22 +944,53 @@ class ResourceAdapterSetup:
         self._write_config_to_db(config, 'default')
 
     def _select_object(self, name: str, name_attr: str,
-                       create: bool = True) -> dict:
+                       create: bool = True,
+                       select_first: bool = False) -> dict:
         """
         Selects and returns an object instance.
+
+        :name str:          the name of the object to select
+        :name_attr str:     the attribute that has the display name
+        :create bool:       whether or not creating a new item should be
+                            available as an option
+        :select_first bool: whether or not to automatically select the first
+                            item in the list (i.e. auto)
 
         :return dict: the selected object data
 
         """
+        obj_list_name: str = '_az_{}s'.format(name.replace(' ', '_'))
+        obj_list = getattr(self, obj_list_name)
+
+        #
+        # If we are supposed to pick the first item in the list, and there
+        # is at least one item, then return it, otherwise we have to ask
+        # the user to go ahead an create one
+        #
+        if select_first:
+            if obj_list:
+                obj = obj_list[0]
+                print(self.format('Selected {}: {{}}'.format(name),
+                                  obj[name_attr]))
+                return obj_list[0]
+
+        #
+        # If not interactive, and nothing has been found, then automatically
+        # create one
+        #
+        if not self.interactive:
+            create_method = getattr(
+                self,
+                '_create_{}'.format(name.replace(' ', '_'))
+            )
+            return create_method()
+
         options: List[str] = []
         if create:
             options.append('c')
 
         print(self.format_white('----------'))
         print(self.format('The following is a list of {}:\n', name + 's'))
-
-        obj_list_name: str = '_az_{}s'.format(name.replace(' ', '_'))
-        obj_list = getattr(self, obj_list_name)
 
         for i in range(len(obj_list)):
             obj = obj_list[i]
@@ -844,15 +1042,16 @@ class ResourceAdapterSetup:
                 'image_urn': self._selected_image['urn'],
                 'user_data_script_template': 'ubuntu_bootstrap.py.tmpl'
             }
-        except KeyError:
-            print(self._selected_application)
-            print(self._selected_resource_group)
-            print(self._selected_virtual_network)
-            print(self._selected_network_security_group)
-            print(self._selected_subnet)
-            print(self._selected_storage_account)
-            print(self._selected_vm_size)
-            print(self._selected_image)
+        except Exception:
+            if self.verbose:
+                print(self._selected_application)
+                print(self._selected_resource_group)
+                print(self._selected_virtual_network)
+                print(self._selected_network_security_group)
+                print(self._selected_subnet)
+                print(self._selected_storage_account)
+                print(self._selected_vm_size)
+                print(self._selected_image)
             raise
 
         return config
