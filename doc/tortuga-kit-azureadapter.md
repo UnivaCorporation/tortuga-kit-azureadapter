@@ -72,7 +72,7 @@ will be created during the setup process below:
 
         az login
 
-2. **Collect Account Information**
+1. **Collect Account Information**
 
     Type in the following command.
 
@@ -89,7 +89,10 @@ will be created during the setup process below:
     named `uc-application` and the API password will be
     `MySecretPassword123`.
 
-        az ad app create --display-name uc-application --native-app false --identifier-uris http://uc-applicaiton.example.com/ --key-type Password --password MySecretPassword123
+        az ad app create --display-name uc-application \
+            --native-app false \
+            --identifier-uris http://uc-applicaiton.example.com/ \
+            --key-type Password --password MySecretPassword123
 
 1. **Create an Active Directory Service Principal**
 
@@ -119,7 +122,9 @@ will be created during the setup process below:
     we will grant full permissions (i.e. Onwer). We use the `appId`
     (as described above) as the assignee.
 
-        az role assignment create --assignee abcd64ef-1ghi-4j39-k715-l754191m8442 --role Owner --resource-group uc-cluster
+        az role assignment create \
+            --assignee abcd64ef-1ghi-4j39-k715-l754191m8442 \
+            --role Owner --resource-group uc-cluster
 
 1. **Grant the Application Owner Priveleges on the Resource Group***
 
@@ -587,7 +592,7 @@ On RHEL/CentOS 6:
 
 ```shell
 service sgemaster.tortuga stop
-service sgemaster.tortuga.stop
+service sgemaster.tortuga start
 ```
 
 If using an external/custom DNS server, ensure it provides forward and
@@ -649,8 +654,10 @@ cloud-based compute nodes:
 
 ### Networking considerations
 
-An external VPN is required for Tortuga installations in which the installer
-node is on-premise (local). This VPN must be managed independently of Tortuga.
+An external VPN is required for Tortuga hybrid (on-prem + cloud)
+installations in which the installer node is on-premise (local).
+
+This VPN must be managed independently of Tortuga.
 
 Without direct network connectivitity, Azure-based compute nodes will be
 unable to properly coverge and join the Tortuga managed cluster.
