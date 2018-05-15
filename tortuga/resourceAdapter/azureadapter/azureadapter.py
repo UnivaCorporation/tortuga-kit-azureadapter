@@ -294,6 +294,9 @@ class AzureAdapter(ResourceAdapter):
                 raise ConfigurationError(
                     'Invalid/malformed value for \'vcpus\'')
 
+        configDict['launch_timeout'] = int(configDict['launch_timeout']) \
+            if 'launch_timeout' in configDict else 300
+
         return configDict
 
     def __merge_resource_adapter_config(self, adapter_cfg):
@@ -676,18 +679,30 @@ class AzureAdapter(ResourceAdapter):
         custom_data = self.__get_custom_data(azure_session, node)
 
         try:
-            async_vm_creation = self.__create_vm(
-                azure_session, db_session, node, custom_data=custom_data,
-                tags=addNodesRequest['tags'])
+            with gevent.Timeout(
+                    azure_session.config['launch_timeout'], TimeoutError):
+                async_vm_creation = self.__create_vm(
+                    azure_session, db_session, node, custom_data=custom_data,
+                    tags=addNodesRequest['tags'])
 
             return async_vm_creation, node_request
-        except azure_exceptions.CloudError as exc:
+        except (azure_exceptions.CloudError, TimeoutError) as exc:
             node_request['status'] = 'failed'
             node_request['exception'] = exc
 
-            self.getLogger().error(
-                'Error launching VM [{0}]: {1}'.format(
-                    vm_name, exc.message))
+            if isinstance(exc, azure_exceptions.CloudError):
+                self.getLogger().error(
+                    'Error launching VM [{0}]: {1}'.format(
+                        vm_name, exc.message
+                    )
+                )
+
+            if isinstance(exc, TimeoutError):
+                self.getLogger().error(
+                    'Timed out launching VM [{}]'.format(
+                        vm_name
+                    )
+                )
 
             # Clean up
             self.__delete_nic(azure_session, vm_name)
