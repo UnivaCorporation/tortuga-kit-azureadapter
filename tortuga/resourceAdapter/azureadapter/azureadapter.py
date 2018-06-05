@@ -617,6 +617,7 @@ class AzureAdapter(ResourceAdapter):
 
                 # Update node state
                 node.state = 'Provisioned'
+                self.fire_provisioned_event(node)
                 dbSession.commit()
 
                 node_request['status'] = 'launched'
