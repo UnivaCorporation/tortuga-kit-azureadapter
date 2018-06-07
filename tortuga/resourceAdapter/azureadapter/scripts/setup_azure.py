@@ -30,6 +30,8 @@ class ResourceAdapterSetup(TortugaCli):
     interactive = False
     adapter_type = 'azure'
 
+    DEFAULT_URN = 'Canonical:UbuntuServer:16.04.0-LTS:latest'
+
     def __init__(self):
         super().__init__()
 
@@ -800,12 +802,18 @@ class ResourceAdapterSetup(TortugaCli):
         # node
         #
         if not self.interactive and self._az_compute_node:
-            urn = '{}:{}:{}:{}'.format(
-                self._az_compute_node['compute']['publisher'],
-                self._az_compute_node['compute']['offer'],
-                self._az_compute_node['compute']['sku'],
-                self._az_compute_node['compute']['version']
-            )
+            if self._az_compute_node['compute']['publisher'] and \
+                    self._az_compute_node['compute']['offer'] and \
+                    self._az_compute_node['compute']['sku'] and \
+                    self._az_compute_node['compute']['version']:
+                urn = '{}:{}:{}:{}'.format(
+                    self._az_compute_node['compute']['publisher'],
+                    self._az_compute_node['compute']['offer'],
+                    self._az_compute_node['compute']['sku'],
+                    self._az_compute_node['compute']['version']
+                )
+            else:
+                urn = self.DEFAULT_URN
             image: dict = self._get_image(urn)
             if not image:
                 print(
