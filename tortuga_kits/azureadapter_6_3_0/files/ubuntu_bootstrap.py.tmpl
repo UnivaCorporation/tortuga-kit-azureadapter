@@ -18,6 +18,8 @@ import os
 import subprocess
 import urllib2
 import platform
+import itertools
+import random
 import time
 import base64
 import json
@@ -26,37 +28,38 @@ import ssl
 ### SETTINGS
 
 
-def runCommand(cmd, retries=1):
-    for nRetry in range(retries):
-        p = subprocess.Popen(cmd, shell=True)
+def tryCommand(command, good_return_values=(0,), retry_limit=0,
+               time_limit=0, max_sleep_time=15000, sleep_interval=2000):
+    total_sleep_time = 0
+    for retries in itertools.count(0):
+        returned = subprocess.Popen(command, shell=True).wait()
+        if returned in good_return_values or \
+                retries >= retry_limit or total_sleep_time >= time_limit:
+            return returned
 
-        retval = p.wait()
-        if retval == 0:
-            break
+        seed = min(max_sleep_time, sleep_interval * 2 ** retries)
+        sleep_for = (seed / 2 + random.randint(0, seed / 2)) / 1000.0
+        total_sleep_time += sleep_for
 
-        time.sleep(5 + 2 ** (nRetry * 0.75))
-    else:
-        return -1
-
-    return retval
+        time.sleep(sleep_for)
 
 
 def _installPackage(pkgname, retries=10):
     cmd = 'apt-get --assume-yes install %s' % (pkgname)
 
-    retval = runCommand(cmd, retries)
+    retval = tryCommand(cmd, retry_limit=retries)
 
     if retval != 0:
-        raise Exception('Error installing package [%s]' % (pkgList))
+        raise Exception('Error installing package [%s]' % pkgList)
 
 
 def _isPackageInstalled(pkgName):
-    return runCommand(
+    return tryCommand(
         'dpkg -l %s 2>/dev/null | grep -q ^ii' % (pkgName)) == 0
 
 
 def installPuppet(codename):
-    url= 'http://apt.puppetlabs.com/puppetlabs-release-pc1-%s.deb' % (codename)
+    url = 'http://apt.puppetlabs.com/puppetlabs-release-pc1-%s.deb' % codename
 
     bRepoInstalled = _isPackageInstalled('puppetlabs-release')
 
@@ -65,7 +68,7 @@ def installPuppet(codename):
 
         tmptuple = tempfile.mkstemp()
 
-        retval = runCommand('wget --tries 5 --retry-connrefused --timeout 120'
+        retval = tryCommand('wget --tries 5 --retry-connrefused --timeout 120'
                             ' --random-wait --quiet %s --output-document %s'
                             % (url, tmptuple[1]))
 
@@ -75,7 +78,7 @@ def installPuppet(codename):
 
         cmd = 'dpkg --install %s' % (tmptuple[1])
 
-        retval = runCommand(cmd)
+        retval = tryCommand(cmd)
 
         if retval != 0:
             raise Exception('Error installing [puppetlabs-release]')
@@ -85,14 +88,14 @@ def installPuppet(codename):
             os.unlink(tmptuple[1])
 
         # Refresh APT repository metadata
-        runCommand('apt-get update')
+        tryCommand('apt-get update')
 
     # Attempt to install puppet
     if not _isPackageInstalled('puppet-agent'):
         _installPackage('puppet-agent')
 
     # Ensure Puppet is configured not to start at boot
-    runCommand('/usr/sbin/update-rc.d puppet disable')
+    tryCommand('/usr/sbin/update-rc.d puppet disable')
 
 
 def setHostName():
@@ -140,10 +143,10 @@ def setHostName():
 
     h = d['node']['name']
 
-    runCommand('hostname %s' % (h))
+    tryCommand('hostname %s' % h)
 
     with open('/etc/hostname', 'a') as fp:
-        fp.write('%s\n' % (h))
+        fp.write('%s\n' % h)
 
     return h
 
@@ -151,17 +154,17 @@ def setHostName():
 def updateResolver(domainName):
     with open('/etc/resolv.conf', 'w') as fp:
         if domainName:
-            fp.write('search %s\n' % (domainName))
+            fp.write('search %s\n' % domainName)
 
-        fp.write('nameserver %s\n' % (installerIpAddress))
+        fp.write('nameserver %s\n' % installerIpAddress)
 
 
 def bootstrapPuppet():
     cmd = ('/opt/puppetlabs/bin/puppet agent'
            ' --logdest /tmp/puppet_bootstrap.log'
-           ' --onetime --server %s --waitforcert 120' % (installerHostName))
+           ' --onetime --server %s --waitforcert 120' % installerHostName)
 
-    runCommand(cmd)
+    tryCommand(cmd, good_return_values=(0, 2), time_limit=10 * 60)
 
 
 def main():
