@@ -29,6 +29,11 @@ setup(
     ],
     zip_safe=False,
     install_requires=[
+        #
+        # We need to pin urllib3 here otherwise requests
+        # (required by azure-cli) breaks and throws warning messages
+        #
+        'urllib3==1.22',
         'azure-cli',
         'colorama',
         'gevent',
