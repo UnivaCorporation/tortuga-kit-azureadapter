@@ -311,29 +311,32 @@ class AzureAdapter(ResourceAdapter):
         provided in overridden resource adapter configuration
         """
 
+        result = dict.copy(default_config or {})
+
         # Remove conflicting configuration items from base configuration
 
         # 'cloud_init_script_template' overrides 'user_data_script_template'
         # and visa-versa.
-        if 'user_data_script_template' in override_config:
-            if 'cloud_init_script_template' in default_config:
-                del default_config['cloud_init_script_template']
-        elif 'cloud_init_script_template' in override_config:
-            if 'user_data_script_template' in default_config:
-                del default_config['user_data_script_template']
+        if override_config:
+            if 'user_data_script_template' in override_config:
+                if 'cloud_init_script_template' in result:
+                    del result['cloud_init_script_template']
+            elif 'cloud_init_script_template' in override_config:
+                if 'user_data_script_template' in result:
+                    del result['user_data_script_template']
 
-        # 'image_urn' overrides 'image' and visa-versa
-        if 'image_urn' in override_config:
-            if 'image' in default_config:
-                del default_config['image']
-        elif 'image' in override_config:
-            if 'image_urn' in default_config:
-                del default_config['image_urn']
+            # 'image_urn' overrides 'image' and visa-versa
+            if 'image_urn' in override_config:
+                if 'image' in result:
+                    del result['image']
+            elif 'image' in override_config:
+                if 'image_urn' in result:
+                    del result['image_urn']
 
-        # Apply overridden settings
-        default_config.update(override_config)
+            # Apply overridden settings
+            result.update(override_config)
 
-        return default_config
+        return result
 
     def __set_config_default(self, configDict, value, default=None): \
             # pylint: disable=no-self-use
