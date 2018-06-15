@@ -7,3 +7,5 @@ man/**/*.8
 .mypy_cache/
 __pycache__/
 .pytest_cache/
+.ropeproject/
+.tox/
