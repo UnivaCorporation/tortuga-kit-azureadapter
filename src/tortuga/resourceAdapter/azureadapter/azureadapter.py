@@ -20,7 +20,7 @@ import itertools
 import os.path
 import random
 import shlex
-from typing import List, NoReturn, Optional, Union
+from typing import List, NoReturn, Optional, Union, Dict
 
 import gevent
 import gevent.lock
@@ -187,7 +187,7 @@ class AzureAdapter(ResourceAdapter):
             ConfigurationError
         """
 
-        configDict = self.__merge_resource_adapter_config(sectionName)
+        configDict = super().getResourceAdapterConfig(sectionName=sectionName)
 
         self.__validate_keys(configDict)
 
@@ -303,41 +303,37 @@ class AzureAdapter(ResourceAdapter):
 
         return configDict
 
-    def __merge_resource_adapter_config(self, adapter_cfg):
-        """Merge default resource adapter configuration with overrides
+    def _normalize_resource_adapter_config(
+            self, default_config: Dict[str, str],
+            override_config: Optional[Dict[str, str]]) -> dict:
+        """
+        Merge default resource adapter configuration with overrides
         provided in overridden resource adapter configuration
         """
-
-        # Load default resource adapter configuration
-        baseConfigDict = self._loadConfigDict()
-
-        # Load overrides from resource adapter configuration
-        overrideConfigDict = self._loadConfigDict(adapter_cfg) \
-            if adapter_cfg else {}
 
         # Remove conflicting configuration items from base configuration
 
         # 'cloud_init_script_template' overrides 'user_data_script_template'
         # and visa-versa.
-        if 'user_data_script_template' in overrideConfigDict:
-            if 'cloud_init_script_template' in baseConfigDict:
-                del baseConfigDict['cloud_init_script_template']
-        elif 'cloud_init_script_template' in overrideConfigDict:
-            if 'user_data_script_template' in baseConfigDict:
-                del baseConfigDict['user_data_script_template']
+        if 'user_data_script_template' in override_config:
+            if 'cloud_init_script_template' in default_config:
+                del default_config['cloud_init_script_template']
+        elif 'cloud_init_script_template' in override_config:
+            if 'user_data_script_template' in default_config:
+                del default_config['user_data_script_template']
 
         # 'image_urn' overrides 'image' and visa-versa
-        if 'image_urn' in overrideConfigDict:
-            if 'image' in baseConfigDict:
-                del baseConfigDict['image']
-        elif 'image' in overrideConfigDict:
-            if 'image_urn' in baseConfigDict:
-                del baseConfigDict['image_urn']
+        if 'image_urn' in override_config:
+            if 'image' in default_config:
+                del default_config['image']
+        elif 'image' in override_config:
+            if 'image_urn' in default_config:
+                del default_config['image_urn']
 
         # Apply overridden settings
-        baseConfigDict.update(overrideConfigDict)
+        default_config.update(override_config)
 
-        return baseConfigDict
+        return default_config
 
     def __set_config_default(self, configDict, value, default=None): \
             # pylint: disable=no-self-use
