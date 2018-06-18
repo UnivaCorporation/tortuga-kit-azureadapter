@@ -12,22 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import configparser
-
-from tortuga.resourceAdapter import azureadapter
-
-
-def init_cfg_obj(filename='nonexistent.cfg', section='nonexistent'):
-    return azureadapter.ResourceAdapterConfigParser(filename, section)
-
-
-def create_empty_cfg(filename, section):
-    cfg = configparser.ConfigParser()
-
-    cfg.add_section('resource-adapter')
-    cfg.add_section(section)
-
-    with open(filename, 'w') as fp:
-        cfg.write(fp)
-
-    return init_cfg_obj(filename, section)
+__import__('pkg_resources').declare_namespace(__name__)

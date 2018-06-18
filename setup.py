@@ -22,7 +22,8 @@ setup(
     author='Univa Corporation',
     author_email='engineering@univa.com',
     license='Apache 2.0',
-    packages=find_packages(exclude=['tortuga_kits']),
+    packages=find_packages(where='src'),
+    package_dir={'': 'src'},
     namespace_packages=[
         'tortuga',
         'tortuga.resourceAdapter'

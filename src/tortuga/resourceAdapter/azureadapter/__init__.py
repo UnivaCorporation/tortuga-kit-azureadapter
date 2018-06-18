@@ -12,23 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tortuga.resourceAdapter.azureadapter import Azureadapter
-from tortuga.db.dbManager import DbManager
-from tortuga.db.nodesDbHandler import NodesDbHandler
-
-
-adapter = Azureadapter()
-
-# adapter_configuration_profile = 'ubuntu'
-
-azure_session = adapter._Azureadapter__get_session()
-
-# print azure_session.config
-
-# print adapter._Azureadapter__get_cloud_init_custom_data(azure_session.config)
-
-session = DbManager().openSession()
-
-node = NodesDbHandler().getNode(session, 'compute-06-rfzxy')
-
-print(adapter._Azureadapter__get_cloud_init_script_custom_data(azure_session.config, node))
+from .azureadapter import AzureAdapter

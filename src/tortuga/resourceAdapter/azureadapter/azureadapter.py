@@ -20,7 +20,7 @@ import itertools
 import os.path
 import random
 import shlex
-from typing import List, NoReturn, Optional, Union
+from typing import List, NoReturn, Optional, Union, Dict
 
 import gevent
 import gevent.lock
@@ -35,10 +35,14 @@ from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.storage.blob import BlockBlobService
 from msrestazure import azure_exceptions
+from tortuga.db.dbManager import DbManager
 from tortuga.db.models.hardwareProfile import HardwareProfile
+from tortuga.db.models.instanceMapping import InstanceMapping
+from tortuga.db.models.instanceMetadata import InstanceMetadata
 from tortuga.db.models.nic import Nic
 from tortuga.db.models.node import Node
 from tortuga.db.models.softwareProfile import SoftwareProfile
+from tortuga.db.nodesDbHandler import NodesDbHandler
 from tortuga.exceptions.configurationError import ConfigurationError
 from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
@@ -183,7 +187,7 @@ class AzureAdapter(ResourceAdapter):
             ConfigurationError
         """
 
-        configDict = self.__merge_resource_adapter_config(sectionName)
+        configDict = super().getResourceAdapterConfig(sectionName=sectionName)
 
         self.__validate_keys(configDict)
 
@@ -299,41 +303,40 @@ class AzureAdapter(ResourceAdapter):
 
         return configDict
 
-    def __merge_resource_adapter_config(self, adapter_cfg):
-        """Merge default resource adapter configuration with overrides
+    def _normalize_resource_adapter_config(
+            self, default_config: Dict[str, str],
+            override_config: Optional[Dict[str, str]]) -> dict:
+        """
+        Merge default resource adapter configuration with overrides
         provided in overridden resource adapter configuration
         """
 
-        # Load default resource adapter configuration
-        baseConfigDict = self._loadConfigDict()
-
-        # Load overrides from resource adapter configuration
-        overrideConfigDict = self._loadConfigDict(adapter_cfg) \
-            if adapter_cfg else {}
+        result = dict.copy(default_config or {})
 
         # Remove conflicting configuration items from base configuration
 
         # 'cloud_init_script_template' overrides 'user_data_script_template'
         # and visa-versa.
-        if 'user_data_script_template' in overrideConfigDict:
-            if 'cloud_init_script_template' in baseConfigDict:
-                del baseConfigDict['cloud_init_script_template']
-        elif 'cloud_init_script_template' in overrideConfigDict:
-            if 'user_data_script_template' in baseConfigDict:
-                del baseConfigDict['user_data_script_template']
+        if override_config:
+            if 'user_data_script_template' in override_config:
+                if 'cloud_init_script_template' in result:
+                    del result['cloud_init_script_template']
+            elif 'cloud_init_script_template' in override_config:
+                if 'user_data_script_template' in result:
+                    del result['user_data_script_template']
 
-        # 'image_urn' overrides 'image' and visa-versa
-        if 'image_urn' in overrideConfigDict:
-            if 'image' in baseConfigDict:
-                del baseConfigDict['image']
-        elif 'image' in overrideConfigDict:
-            if 'image_urn' in baseConfigDict:
-                del baseConfigDict['image_urn']
+            # 'image_urn' overrides 'image' and visa-versa
+            if 'image_urn' in override_config:
+                if 'image' in result:
+                    del result['image']
+            elif 'image' in override_config:
+                if 'image_urn' in result:
+                    del result['image_urn']
 
-        # Apply overridden settings
-        baseConfigDict.update(overrideConfigDict)
+            # Apply overridden settings
+            result.update(override_config)
 
-        return baseConfigDict
+        return result
 
     def __set_config_default(self, configDict, value, default=None): \
             # pylint: disable=no-self-use
@@ -441,11 +444,11 @@ class AzureAdapter(ResourceAdapter):
             NetworkNotFound
         """
 
-        cfgname = addNodesRequest['resource_adapter_configuration'] \
-            if 'resource_adapter_configuration' in addNodesRequest else \
-            None
+        configDict = self.getResourceAdapterConfig(
+            addNodesRequest.get('resource_adapter_configuration')
+        )
 
-        azure_session = self.__get_session(profile_name=cfgname)
+        azure_session = AzureSession(config=configDict)
 
         # This bit of ugliness sets the configuration item 'ssh_key_value'
         # to either the user-provided override value or the default
@@ -531,12 +534,17 @@ class AzureAdapter(ResourceAdapter):
             node = node_request['node']
             vm_name = get_vm_name(node.name)
 
-            metadata = dict(vm_name=vm_name)
+            adapter_cfg = self.load_resource_adapter_config(
+                dbSession,
+                addNodesRequest.get('resource_adapter_configuration')
+            )
 
-            if cfgname:
-                metadata['resource_adapter_configuration'] = cfgname
-
-            self.instanceCacheSet(node.name, metadata=metadata)
+            node.instance = InstanceMapping(
+                metadata=[
+                    InstanceMetadata(key='vm_name', value=vm_name),
+                ],
+                resource_adapter_configuration=adapter_cfg,
+            )
 
             wait_queue.put((async_vm_creation, node_request))
 
@@ -1326,10 +1334,6 @@ dns_nameservers = %(dns_nameservers)s
 
         return True
 
-    def __get_session(self, profile_name=None):
-        return AzureSession(
-            config=self.getResourceAdapterConfig(sectionName=profile_name))
-
     def deleteNode(self, nodes):
         """Delete Azure VMs associated with nodes"""
 
@@ -1373,24 +1377,6 @@ dns_nameservers = %(dns_nameservers)s
             wait_queue.put(delete_request)
 
         wait_queue.join()
-
-    def __get_vm_name_from_node_name(self, name):
-        """
-        Raises:
-            ResourceNotFound
-        """
-
-        # Look up VM name from instance cache
-        instance_cache = self.instanceCacheGet(name)
-
-        if instance_cache is None:
-            # If the instance cache is empty/malformed, it does not contain
-            # the req'd VM name mapping, so raise ResourceNotFound
-            raise ResourceNotFound(
-                'Instance cache entry for node [{0}] is empty'.format(
-                    name))
-
-        return instance_cache['vm_name']
 
     def __pre_delete_node(self, node, azure_session):
         """no op"""
@@ -1456,9 +1442,6 @@ dns_nameservers = %(dns_nameservers)s
                         self.getLogger().info(
                             'Managed disk [{0}] does not exist'.format(
                                 disk_name))
-
-                # Remove instance cache node mapping
-                self.instanceCacheDelete(delete_request['node'].name)
 
                 self.getLogger().info(
                     'VM [{0}] deleted'.format(vm_name))
@@ -1672,10 +1655,9 @@ dns_nameservers = %(dns_nameservers)s
     def __iter_vm_name_and_session_tuples(self, nodes):
         for node in nodes:
             try:
-                azure_session = self.__get_session(
-                    profile_name=self.
-                    getResourceAdapterConfigProfileByNodeName(
-                        node.name))
+                azure_session = AzureSession(
+                    config=self.get_node_resource_adapter_config(node)
+                )
             except ResourceNotFound:
                 # Unable to determine resource adapter configuration
                 self.getLogger().error(
@@ -1685,9 +1667,13 @@ dns_nameservers = %(dns_nameservers)s
                 continue
 
             # Use the instance cache to determine the VM name
-            try:
-                vm_name = self.__get_vm_name_from_node_name(node.name)
-            except ResourceNotFound:
+            vm_name = None
+
+            for md in node.instance.instance_metadata:
+                if md.key == 'vm_name':
+                    vm_name = md.value
+                    break
+            else:
                 self.getLogger().warning(
                     'Unable to determine VM name for'
                     ' node [{}]'.format(node.name))
@@ -1721,22 +1707,19 @@ dns_nameservers = %(dns_nameservers)s
             ResourceNotFound
         """
 
-        try:
-            instance_cache = self.instanceCacheGet(name)
-        except ResourceNotFound:
-            return 1
+        with DbManager().session() as dbSession:
+            node = NodesDbHandler().getNode(dbSession, name)
 
-        profile_name = instance_cache['resource_adapter_configuration'] \
-            if 'resource_adapter_configuration' in instance_cache else None
+            session = AzureSession(
+                config=self.get_node_resource_adapter_config(node)
+            )
 
-        session = self.__get_session(profile_name=profile_name)
+            if 'vcpus' in session.config:
+                return session.config['vcpus']
 
-        if 'vcpus' in session.config:
-            return session.config['vcpus']
-
-        return self.get_core_count(session,
-                                   session.config['location'],
-                                   session.config['size'])
+            return self.get_core_count(session,
+                                       session.config['location'],
+                                       session.config['size'])
 
 
 def get_vm_name(name):
