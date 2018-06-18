@@ -83,10 +83,10 @@ class AzureAdapter(ResourceAdapter):
             nodes = self.__add_idle_nodes(
                 addNodesRequest, dbSession, dbHardwareProfile,
                 dbSoftwareProfile)
-
-        nodes = self.__add_active_nodes(
-            addNodesRequest, dbSession, dbHardwareProfile,
-            dbSoftwareProfile)
+        else:
+            nodes = self.__add_active_nodes(
+                addNodesRequest, dbSession, dbHardwareProfile,
+                dbSoftwareProfile)
 
         if len(nodes) < addNodesRequest['count']:
             self.getLogger().warning(

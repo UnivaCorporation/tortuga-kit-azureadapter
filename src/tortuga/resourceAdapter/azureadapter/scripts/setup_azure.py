@@ -30,7 +30,8 @@ class ResourceAdapterSetup(TortugaCli):
     interactive = False
     adapter_type = 'azure'
 
-    DEFAULT_URN = 'Canonical:UbuntuServer:16.04.0-LTS:latest'
+    DEFAULT_URN = 'OpenLogic:CentOS-CI:7-CI:latest'
+    DEFAULT_BOOTSTRAP = 'azure_rhel_conf.py'
 
     def __init__(self):
         super().__init__()
@@ -1058,7 +1059,7 @@ class ResourceAdapterSetup(TortugaCli):
                     self._selected_virtual_network['name'],
                 'subnet_name': self._selected_subnet['name'],
                 'image_urn': self._selected_image['urn'],
-                'user_data_script_template': 'ubuntu_bootstrap.py.tmpl'
+                'user_data_script_template': self.DEFAULT_BOOTSTRAP
             }
         except Exception:
             if self.verbose:
