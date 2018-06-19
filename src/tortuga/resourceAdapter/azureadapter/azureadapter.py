@@ -444,9 +444,11 @@ class AzureAdapter(ResourceAdapter):
             NetworkNotFound
         """
 
-        configDict = self.getResourceAdapterConfig(
-            addNodesRequest.get('resource_adapter_configuration')
-        )
+        cfgname = addNodesRequest.get('resource_adapter_configuration')
+        if cfgname is None or cfgname == 'default':
+            # use default resource adapter configuration, if set
+            cfgname = hardwareprofile.default_resource_adapter_config.name \
+                if hardwareprofile.default_resource_adapter_config else None
 
         azure_session = AzureSession(config=configDict)
 
