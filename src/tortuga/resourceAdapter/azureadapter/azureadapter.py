@@ -44,6 +44,7 @@ from tortuga.db.models.node import Node
 from tortuga.db.models.softwareProfile import SoftwareProfile
 from tortuga.db.nodesDbHandler import NodesDbHandler
 from tortuga.exceptions.configurationError import ConfigurationError
+from tortuga.exceptions.nodeNotFound import NodeNotFound
 from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
@@ -1707,21 +1708,32 @@ dns_nameservers = %(dns_nameservers)s
         """
         Raises:
             ResourceNotFound
+
         """
+        #
+        # Default to zero, because if for some reason the node can't be found
+        # (i.e. it was deleted in the background), then it will not be using
+        # any cpus
+        #
+        vcpus = 0
 
         with DbManager().session() as dbSession:
-            node = NodesDbHandler().getNode(dbSession, name)
+            try:
+                node = NodesDbHandler().getNode(dbSession, name)
 
-            session = AzureSession(
-                config=self.get_node_resource_adapter_config(node)
-            )
+                session = AzureSession(
+                    config=self.get_node_resource_adapter_config(node)
+                )
 
-            if 'vcpus' in session.config:
-                return session.config['vcpus']
+                vcpus = session.config.get('vcpus', 0)
+                if not vcpus:
+                    vcpus = self.get_core_count(session,
+                                                session.config['location'],
+                                                session.config['size'])
+            except NodeNotFound:
+                pass
 
-            return self.get_core_count(session,
-                                       session.config['location'],
-                                       session.config['size'])
+            return vcpus
 
 
 def get_vm_name(name):
