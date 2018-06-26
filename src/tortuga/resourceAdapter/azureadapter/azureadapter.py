@@ -48,6 +48,7 @@ from tortuga.exceptions.nodeNotFound import NodeNotFound
 from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
+from tortuga.node import state
 from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter
 
 
@@ -148,7 +149,7 @@ class AzureAdapter(ResourceAdapter):
 
         node = Node(name=name)
 
-        node.state = 'Launching'
+        node.state = state.NODE_STATE_LAUNCHING
 
         node.isIdle = softwareprofile is None
 
@@ -528,7 +529,7 @@ class AzureAdapter(ResourceAdapter):
 
             if async_vm_creation is None:
                 # Instance failed to launch
-                node_request['node'].state = 'Error'
+                node_request['node'].state = state.NODE_STATE_ERROR
                 dbSession.commit()
 
                 continue
@@ -627,7 +628,7 @@ class AzureAdapter(ResourceAdapter):
                         1000000.0))
 
                 # Update node state
-                node.state = 'Provisioned'
+                node.state = state.NODE_STATE_PROVISIONED
                 self.fire_provisioned_event(node)
                 dbSession.commit()
 
