@@ -35,15 +35,17 @@ def myfunc(load_config_dict_mock, sectionName=None):
         'resource_group': 'resource-group',
         'security_group': 'my-nsg',
         'default_login': 'myuser',
-        'user_data_script_template': '/etc/hosts',
         'ssh_key_value': 'ssh-rsa ...',
-        'image': 'myimage',
-        'use_managed_disks': 'true',
+        'storage_account': 'my-storage',
+        'virtual_network_name': 'my-vnet',
+        'subnet_name': 'my-subnet',
+        'user_data_script_template': '/etc/hosts',
+        'image': 'myimage'
     }
 
 
 @mock.patch('tortuga.resourceAdapter.azureadapter.azureadapter.AzureAdapter.private_dns_zone', new_callable=mock.PropertyMock)
-@mock.patch.object(AzureAdapter, '_loadConfigDict', new=myfunc)
+@mock.patch.object(AzureAdapter, '_load_config_from_database', new=myfunc)
 def test_default_config(private_dns_zone_mock):
     private_dns_zone_mock.return_value = 'example.com'
 
@@ -53,7 +55,7 @@ def test_default_config(private_dns_zone_mock):
 
 
 @mock.patch('tortuga.resourceAdapter.azureadapter.azureadapter.AzureAdapter.private_dns_zone', new_callable=mock.PropertyMock)
-@mock.patch.object(AzureAdapter, '_loadConfigDict', return_value={})
+@mock.patch.object(AzureAdapter, '_load_config_from_database', return_value={})
 def test_invalid_empty_config(load_config_dict_mock, private_dns_zone_mock):
     private_dns_zone_mock.return_value = 'example.com'
 
@@ -62,7 +64,7 @@ def test_invalid_empty_config(load_config_dict_mock, private_dns_zone_mock):
 
 
 @mock.patch('tortuga.resourceAdapter.azureadapter.azureadapter.AzureAdapter.private_dns_zone', new_callable=mock.PropertyMock)
-@mock.patch.object(AzureAdapter, '_loadConfigDict', new=myfunc)
+@mock.patch.object(AzureAdapter, '_load_config_from_database', new=myfunc)
 def test_basic(private_dns_zone_mock):
     private_dns_zone_mock.return_value = 'example.com'
 
