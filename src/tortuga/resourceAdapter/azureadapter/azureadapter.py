@@ -148,7 +148,7 @@ class AzureAdapter(ResourceAdapter):
                         'fully-qualified (does not start with a leading'
                         'forward slash), it is assumed the script path is '
                         '$TORTUGA_ROOT/config',
-            base_path='/tortuga/config/',
+            base_path='/opt/tortuga/config/',
             mutually_exclusive=['user_data_script_template'],
             overrides=['user_data_script_template']
         ),
@@ -159,7 +159,7 @@ class AzureAdapter(ResourceAdapter):
                         'fully-qualified (ie. does not start with a leading '
                         'forward slash), it is assumed the script path is '
                         '$TORTUGA_ROOT/config',
-            base_path='/tortuga/config/',
+            base_path='/opt/tortuga/config/',
             mutually_exclusive=['cloud_init_script_template'],
             overrides=['cloud_init_script_template']
         ),
@@ -329,8 +329,9 @@ class AzureAdapter(ResourceAdapter):
         Create nodes records
         """
 
-        dns_domain = None if not configDict['override_dns_domain'] else \
-            configDict['dns_domain']
+        dns_domain = None \
+            if not configDict.get('override_dns_domain', None) \
+            else configDict['dns_domain']
 
         return [
             self.__create_node(
@@ -440,6 +441,8 @@ class AzureAdapter(ResourceAdapter):
             # use default resource adapter configuration, if set
             cfgname = hardwareprofile.default_resource_adapter_config.name \
                 if hardwareprofile.default_resource_adapter_config else None
+
+        configDict = self.getResourceAdapterConfig(cfgname)
 
         azure_session = AzureSession(config=configDict)
 
@@ -821,7 +824,7 @@ class AzureAdapter(ResourceAdapter):
         tmpl_vars = {
             'installer': self.installer_public_hostname,
             'installer_ip_address': self.installer_public_ipaddress,
-            'override_dns_domain': configDict['override_dns_domain'],
+            'override_dns_domain': configDict.get('override_dns_domain', None),
             'dns_domain': configDict['dns_domain'],
         }
 
@@ -846,7 +849,7 @@ class AzureAdapter(ResourceAdapter):
                 'adminport': self._cm.getAdminPort(),
                 'cfmuser': self._cm.getCfmUser(),
                 'cfmpassword': self._cm.getCfmPassword(),
-                'override_dns_domain': str(configDict['override_dns_domain']),
+                'override_dns_domain': str(configDict.get('override_dns_domain', None)),
                 'dns_search': configDict['dns_search'],
                 'dns_nameservers': _get_encoded_list(
                     configDict['dns_nameservers']),
