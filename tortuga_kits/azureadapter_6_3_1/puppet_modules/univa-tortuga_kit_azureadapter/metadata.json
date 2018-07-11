@@ -1,9 +1,9 @@
 {
   "name": "univa-tortuga_kit_azureadapter",
-  "version": "6.3.0",
+  "version": "6.3.1",
   "author": "Univa",
   "summary": "Microsoft Azure integration for Tortuga",
-  "license": "Commercial",
+  "license": "Apache 2.0",
   "source": "http://univa.com",
   "project_page": "http://univa.com",
   "issues_url": "http://support.univa.com",
