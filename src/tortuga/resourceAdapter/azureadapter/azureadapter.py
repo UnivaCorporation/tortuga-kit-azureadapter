@@ -20,7 +20,7 @@ import itertools
 import os.path
 import random
 import shlex
-from typing import List, NoReturn, Optional, Union, Dict
+from typing import Any, List, NoReturn, Optional, Union, Dict
 
 import gevent
 import gevent.lock
@@ -50,6 +50,7 @@ from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
 from tortuga.node import state
 from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter
+from tortuga.resourceAdapterConfiguration import settings
 
 
 AZURE_ASYNC_OP_TIMEOUT = 900
@@ -64,12 +65,169 @@ class AzureAdapter(ResourceAdapter):
 
     DEFAULT_CREATE_TIMEOUT = 900
 
+    settings = {
+        'subscription_id': settings.StringSetting(
+            required=True,
+            description='Azure subscription ID; obtainable from azure CLI or '
+                        'Management Portal'
+        ),
+        'client_id': settings.StringSetting(
+            required=True,
+            description='Azure client ID; obtainable from azure CLI or '
+                        'Management Portal'
+        ),
+        'tenant_id': settings.StringSetting(
+            required=True,
+            description='Azure tenant ID; obtainable from azure CLI or '
+                        'Management Portal'
+        ),
+        'secret': settings.StringSetting(
+            required=True,
+            description='Azure client secret; obtainable from azure CLI or '
+                        'Management Portal'
+        ),
+        'security_group': settings.StringSetting(
+            required=True,
+            description='Azure security group to associate with created '
+                        'virtual machines'
+
+        ),
+        'resource_group': settings.StringSetting(
+            required=True,
+            description='Azure resource group where Tortuga will create '
+                        'virtual machines'
+        ),
+        'storage_account': settings.StringSetting(
+            required=True,
+            description='Azure storage account where virtual disks for '
+                        'Tortuga-managed nodes will be created'
+        ),
+        'location': settings.StringSetting(
+            required=True,
+            description='Azure region in which to create virtual machines',
+            default='East US'
+        ),
+        'size': settings.StringSetting(
+            required=True,
+            description='"Size" of virtual machines',
+            default='Basic_A2'
+        ),
+        'default_login': settings.StringSetting(
+            required=True,
+            description='Default user login on compute nodes. A login is '
+                        'created by default on Tortuga-managed compute nodes '
+                        'for the specified user.',
+            default='azureuser'
+        ),
+        'virtual_network_name': settings.StringSetting(
+            required=True,
+            description='Name of virtual network to associate with virtual '
+                        'machines',
+            requires=['subnet_name']
+        ),
+        'subnet_name': settings.StringSetting(
+            required=True,
+            description='Name of subnet to be used within configured virtual '
+                        'network',
+            list=True
+        ),
+        'image_urn': settings.StringSetting(
+            description='URN of desired operating system VM image',
+            mutually_exclusive=['image'],
+            overrides=['image']
+        ),
+        'image': settings.StringSetting(
+            description='Name of VM image',
+            mutually_exclusive=['image_urn'],
+            overrides=['image_urn']
+        ),
+        'cloud_init_script_template': settings.FileSetting(
+            required=True,
+            description='Use this setting to specify the filename/path of'
+                        'the cloud-init script template. If the path is not'
+                        'fully-qualified (does not start with a leading'
+                        'forward slash), it is assumed the script path is '
+                        '$TORTUGA_ROOT/config',
+            base_path='/opt/tortuga/config/',
+            mutually_exclusive=['user_data_script_template'],
+            overrides=['user_data_script_template']
+        ),
+        'user_data_script_template': settings.FileSetting(
+            required=True,
+            description='File name of bootstrap script template to be used '
+                        'on compute nodes. If the path is not '
+                        'fully-qualified (ie. does not start with a leading '
+                        'forward slash), it is assumed the script path is '
+                        '$TORTUGA_ROOT/config',
+            base_path='/opt/tortuga/config/',
+            mutually_exclusive=['cloud_init_script_template'],
+            overrides=['cloud_init_script_template']
+        ),
+        'allocate_public_ip': settings.BooleanSetting(
+            description='When disabled (value "false"), VMs created by '
+                        'Tortuga will not have a public IP address.',
+            default='True'
+        ),
+        'storage_account_type': settings.StringSetting(
+            description='Use specified storage account type when using an VM '
+                        'image.',
+            default='Standard_LRS',
+            values=['Standard_LRS', 'Premium_LRS']
+        ),
+        'tags': settings.StringSetting(
+            description='Space-separated "key=value" pairs',
+            list=True
+        ),
+        'override_dns_domain': settings.BooleanSetting(),
+        'dns_domain': settings.StringSetting(
+            requires=['override_dns_domain']
+        ),
+        'dns_search': settings.StringSetting(
+            description='Set search list for compute node host name lookup. '
+                        'Default is the private DNS domain suffix if '
+                        '"override_dns_domain" is enabled, otherwise '
+                        'DNS domain suffix of Tortuga installer.'
+        ),
+        'dns_nameservers': settings.StringSetting(
+            description='Space-separated list of IP addresses to be set in '
+                        '/etc/resolv.conf. The default is the Tortuga DNS '
+                        'server IP.',
+            list=True,
+            list_separator=' ',
+            default=''
+        ),
+        'ssh_key_value': settings.StringSetting(
+            description='Specifies the SSH public key or public key file '
+                        'path. If the value of this setting starts with a '
+                        'forward slash (/), it is assumed to be a file path. '
+                        'The SSH public key will be read from this file.'
+        ),
+        'vcpus': settings.IntegerSetting(
+            description='Default behaviour is to use the virtual CPUs count '
+                        'obtained from Azure. If vcpus is defined, it '
+                        'overrides the default value.'
+        ),
+        'use_managed_disks': settings.BooleanSetting(
+            default='False',
+            advanced=True
+        ),
+        'ssd': settings.BooleanSetting(
+            default='False',
+            advanced=True
+        ),
+        'launch_timeout': settings.IntegerSetting(
+            default='300',
+            advanced=True
+        )
+    }
+
     def start(self, addNodesRequest, dbSession, dbHardwareProfile,
               dbSoftwareProfile=None):
         """
         Create Azure virtual machine to map to a Tortuga node.
 
         Called when nodes are added to Tortuga.
+
         """
 
         self.getLogger().debug(
@@ -171,8 +329,9 @@ class AzureAdapter(ResourceAdapter):
         Create nodes records
         """
 
-        dns_domain = None if not configDict['override_dns_domain'] else \
-            configDict['dns_domain']
+        dns_domain = None \
+            if not configDict.get('override_dns_domain', None) \
+            else configDict['dns_domain']
 
         return [
             self.__create_node(
@@ -183,257 +342,88 @@ class AzureAdapter(ResourceAdapter):
             for _ in range(count)
         ]
 
-    def getResourceAdapterConfig(self, sectionName=None):
-        """
-        Raises:
-            ConfigurationError
-        """
+    def process_config(self, config: Dict[str, Any]):
+        #
+        # Get the SSH key
+        #
+        config['ssh_key_value'] = self.__get_ssh_public_key(
+            config.get('ssh_key_value', None))
 
-        configDict = super().getResourceAdapterConfig(sectionName=sectionName)
-
-        self.__validate_keys(configDict)
-
-        self.__set_config_default(
-            configDict, 'location', AzureSession.DEFAULT_LOCATION)
-
-        self.__set_config_default(
-            configDict, 'size', AzureSession.DEFAULT_SIZE)
-
-        self.__set_config_default(
-            configDict, 'default_user', AzureSession.DEFAULT_USER)
-
-        if 'subnet_name' in configDict:
-            configDict['subnet_name'] = configDict['subnet_name'].split(',')
-
-        # If VPN is undefined, assumed it is disabled
-        if 'vpn' in configDict:
-            raise ConfigurationError('Built-in VPN support is obsolete')
-
-        if 'image_urn' in configDict:
+        #
+        # Validate the image/image_urn
+        #
+        if 'image_urn' in config:
             try:
                 publisher, offer, sku, version = \
-                    configDict['image_urn'].split(':', 4) \
-                    if 'image_urn' in configDict else \
-                    (None, None, None, None)
-
-                configDict['image_reference'] = {
+                    config['image_urn'].split(':', 4)
+                config['image_reference'] = {
                     'publisher': publisher,
                     'offer': offer,
                     'sku': sku,
                     'version': version,
                 }
+
             except ValueError:
                 raise ConfigurationError(
-                    'Malformed \'image_urn\' in adapter configuration')
-        elif 'image' not in configDict:
-            raise ConfigurationError(
-                '\'image_urn\' or \'image\' must be configured')
+                    'Malformed "image_urn" in adapter configuration')
 
-        # 'use_managed_disks'
-        configDict['use_managed_disks'] = \
-            configDict['use_managed_disks'].lower().startswith('t') \
-            if 'use_managed_disks' in configDict else False
-
-        if 'image' in configDict:
+        #
+        # Managed disks
+        #
+        if 'image' in config:
+            #
             # VMs created from images must use managed disks
-            configDict['use_managed_disks'] = True
+            #
+            config['use_managed_disks'] = True
 
-        if not configDict['use_managed_disks']:
-            if 'storage_account' not in configDict:
+        if not config.get('use_managed_disks', None):
+            if 'storage_account' not in config:
                 raise ConfigurationError(
                     'Azure storage account must be specified when using'
                     ' unmanaged disks')
 
-        if 'ssd' in configDict and not configDict['use_managed_disks']:
-            self.getLogger().warning(
-                'Ignoring \'ssd\' setting;'
-                ' must be set in storage account settings')
-        else:
-            # Enable SSD-backed instances if ssd is set to "true"
-            configDict['ssd'] = \
-                configDict['ssd'].lower().startswith('t') \
-                if 'ssd' in configDict else False
+        if 'ssd' in config and not config.get('use_managed_disks', None):
+            self.getLogger().warning('Ignoring "ssd" setting; must be set in '
+                                     'storage account settings')
 
-        # Parse out user-defined tags
-        if 'tags' in configDict and configDict['tags']:
-            configDict['tags'] = parse_tags(configDict['tags'])
+        #
+        # Parse tags
+        #
+        if config.get('tags', None):
+            config['tags'] = parse_tags(config['tags'])
 
-        configDict['allocate_public_ip'] = \
-            configDict['allocate_public_ip'].lower().startswith('t') \
-            if 'allocate_public_ip' in configDict else True
+        #
+        # DNS domain
+        #
+        config['dns_domain'] = config['dns_domain'] \
+            if 'dns_domain' in config else self.private_dns_zone
 
-        configDict['override_dns_domain'] = \
-            configDict['override_dns_domain'].lower().startswith('t') \
-            if 'override_dns_domain' in configDict else False
-
-        configDict['dns_domain'] = \
-            configDict['dns_domain'] \
-            if 'dns_domain' in configDict else \
-            self.private_dns_zone
-
-        if 'dns_search' not in configDict:
+        #
+        # DNS search
+        #
+        if 'dns_search' not in config:
+            #
             # If not specified, use 'dns_domain' as the default
             # DNS search when 'override_dns_domain' is enabled
-            if configDict['override_dns_domain']:
-                configDict['dns_search'] = configDict['dns_domain']
+            #
+            if config.get('override_dns_domain', None):
+                config['dns_search'] = config['dns_domain']
+            #
+            # Otherwise default to DNS domain of installer
+            #
             else:
-                # Otherwise default to DNS domain of installer
                 result = self.installer_public_hostname.split('.', 1)
+                config['dns_search'] = result[1] if len(result) == 2 else None
 
-                configDict['dns_search'] = result[1] \
-                    if len(result) == 2 else None
-
-        configDict['dns_nameservers'] = \
-            configDict['dns_nameservers'].split(' ') \
-            if 'dns_nameservers' in configDict else []
-
-        if not configDict['dns_nameservers']:
+        #
+        # DNS nameservers
+        #
+        if not config['dns_nameservers']:
+            #
             # Always include Tortuga installer DNS server as default
-            configDict['dns_nameservers'].append(
+            #
+            config['dns_nameservers'].append(
                 self.installer_public_ipaddress)
-
-        if 'vcpus' in configDict:
-            # resource adapter vcpus configuration overrides all
-            try:
-                configDict['vcpus'] = int(configDict['vcpus'])
-            except ValueError:
-                raise ConfigurationError(
-                    'Invalid/malformed value for \'vcpus\'')
-
-        configDict['launch_timeout'] = int(configDict['launch_timeout']) \
-            if 'launch_timeout' in configDict else 300
-
-        return configDict
-
-    def _normalize_resource_adapter_config(
-            self, default_config: Dict[str, str],
-            override_config: Optional[Dict[str, str]]) -> dict:
-        """
-        Merge default resource adapter configuration with overrides
-        provided in overridden resource adapter configuration
-        """
-
-        result = dict.copy(default_config or {})
-
-        # Remove conflicting configuration items from base configuration
-
-        # 'cloud_init_script_template' overrides 'user_data_script_template'
-        # and visa-versa.
-        if override_config:
-            if 'user_data_script_template' in override_config:
-                if 'cloud_init_script_template' in result:
-                    del result['cloud_init_script_template']
-            elif 'cloud_init_script_template' in override_config:
-                if 'user_data_script_template' in result:
-                    del result['user_data_script_template']
-
-            # 'image_urn' overrides 'image' and visa-versa
-            if 'image_urn' in override_config:
-                if 'image' in result:
-                    del result['image']
-            elif 'image' in override_config:
-                if 'image_urn' in result:
-                    del result['image_urn']
-
-            # Apply overridden settings
-            result.update(override_config)
-
-        return result
-
-    def __set_config_default(self, configDict, value, default=None): \
-            # pylint: disable=no-self-use
-        if value not in configDict:
-            configDict[value] = default
-
-    def __validate_keys(self, configDict):
-        """Ensure required configuration items are set, otherwise raise
-        exception.
-
-        Raises:
-            ConfigurationError
-        """
-
-        keys = list(configDict.keys())
-
-        required_keys = [
-            'subscription_id',
-            'client_id',
-            'secret',
-            'tenant_id',
-            'resource_group',
-            'security_group',
-            'default_login',
-        ]
-
-        missing_keys = set(required_keys).difference(set(keys))
-
-        if missing_keys:
-            errmsg = 'Required configuration setting(s) [%s] are missing' % (
-                ' '.join(missing_keys))
-
-            self.getLogger().error('' + errmsg)
-
-            raise ConfigurationError(errmsg)
-
-        if 'cloud_init_script_template' in configDict and \
-                'user_data_script_template' in configDict:
-            raise ConfigurationError(
-                '\'cloud_init_script_template\' and '
-                ' \'user_data_script_template\' settings are mutually'
-                ' exclusive')
-
-        # Validate config settings
-        if 'subnet_name' in configDict and \
-                'virtual_network_name' not in configDict:
-            raise ConfigurationError(
-                'Subnet name(s) specified without specifying'
-                ' virtual network name')
-
-        if 'cloud_init_script_template' in configDict:
-            try:
-                configDict['cloud_init_script_template'] = \
-                    self.__get_config_file(
-                        configDict['cloud_init_script_template'])
-            except ConfigurationError:
-                raise ConfigurationError(
-                    'cloud_init_script_template [{0}] does not exist or is'
-                    ' inaccessible'.format(
-                        configDict['cloud_init_script_template']))
-
-        if 'user_data_script_template' in configDict:
-            try:
-                configDict['user_data_script_template'] = \
-                    self.__get_config_file(
-                        configDict['user_data_script_template'])
-            except ConfigurationError:
-                raise ConfigurationError(
-                    'user_data_script_template [{0}] does not exist or is'
-                    ' inaccessible'.format(
-                        configDict['user_data_script_template']))
-
-        configDict['ssh_key_value'] = self.__get_ssh_public_key(
-            configDict['ssh_key_value']
-            if 'ssh_key_value' in configDict else None)
-
-    def __get_config_file(self, filename):
-        """Verify existence of 'filename' adding fully-qualfiied path to
-        $TORTUGA_ROOT/config as necessary.
-
-        Returns fully-qualified path
-
-        Raises:
-            ConfigurationError
-        """
-
-        if not filename.startswith('/'):
-            filename = os.path.join(self._cm.getKitConfigBase(), filename)
-
-        if not os.path.exists(filename):
-            raise ConfigurationError(
-                'File [{0}] does not exist or is inaccessible'.format(
-                    filename))
-
-        return filename
 
     def __add_active_nodes(self, addNodesRequest, dbSession,
                            hardwareprofile, softwareprofile):
@@ -451,6 +441,8 @@ class AzureAdapter(ResourceAdapter):
             # use default resource adapter configuration, if set
             cfgname = hardwareprofile.default_resource_adapter_config.name \
                 if hardwareprofile.default_resource_adapter_config else None
+
+        configDict = self.getResourceAdapterConfig(cfgname)
 
         azure_session = AzureSession(config=configDict)
 
@@ -832,7 +824,7 @@ class AzureAdapter(ResourceAdapter):
         tmpl_vars = {
             'installer': self.installer_public_hostname,
             'installer_ip_address': self.installer_public_ipaddress,
-            'override_dns_domain': configDict['override_dns_domain'],
+            'override_dns_domain': configDict.get('override_dns_domain', None),
             'dns_domain': configDict['dns_domain'],
         }
 
@@ -857,7 +849,7 @@ class AzureAdapter(ResourceAdapter):
                 'adminport': self._cm.getAdminPort(),
                 'cfmuser': self._cm.getCfmUser(),
                 'cfmpassword': self._cm.getCfmPassword(),
-                'override_dns_domain': str(configDict['override_dns_domain']),
+                'override_dns_domain': str(configDict.get('override_dns_domain', None)),
                 'dns_search': configDict['dns_search'],
                 'dns_nameservers': _get_encoded_list(
                     configDict['dns_nameservers']),
@@ -1738,18 +1730,18 @@ dns_nameservers = %(dns_nameservers)s
 
 
 def get_vm_name(name):
-    """Map node name to VM name by stripping DNS suffix"""
+    """
+    Map node name to VM name by stripping DNS suffix
+
+    """
     return name.split('.', 1)[0]
 
 
 class AzureSession(object):
-    """Object holding session information"""
+    """
+    Object holding session information
 
-    DEFAULT_LOCATION = 'East US'
-    DEFAULT_SERVICE_NAME_PREFIX = 'tortuga'
-    DEFAULT_SIZE = 'Basic_A2'
-    DEFAULT_USER = 'azureuser'
-
+    """
     def __init__(self, config=None):
         """
         Raises:
