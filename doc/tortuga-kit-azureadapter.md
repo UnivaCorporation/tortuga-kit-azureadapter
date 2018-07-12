@@ -126,7 +126,7 @@ will be created during the setup process below:
             --assignee abcd64ef-1ghi-4j39-k715-l754191m8442 \
             --role Owner --resource-group uc-cluster
 
-1. **Grant the Application Owner Priveleges on the Resource Group***
+1. **Grant the Application Owner Privileges on the Resource Group***
 
     In order for the applicaiton to be able to use the resources
     in the resource group, it must be granted full permisison. This
