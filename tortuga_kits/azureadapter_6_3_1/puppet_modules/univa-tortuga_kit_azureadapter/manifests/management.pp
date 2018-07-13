@@ -14,6 +14,8 @@
 
 
 class tortuga_kit_azureadapter::management {
+  include tortuga_kit_azureadapter::config
+
   $compdescr = "management-${tortuga_kit_azureadapter::config::major_version}"
 
   contain tortuga_kit_azureadapter::management::package
