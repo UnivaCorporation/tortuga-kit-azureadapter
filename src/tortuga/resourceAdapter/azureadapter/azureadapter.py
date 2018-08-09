@@ -35,7 +35,6 @@ from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.storage.blob import BlockBlobService
 from msrestazure import azure_exceptions
-from tortuga.db.dbManager import DbManager
 from tortuga.db.models.hardwareProfile import HardwareProfile
 from tortuga.db.models.instanceMapping import InstanceMapping
 from tortuga.db.models.instanceMetadata import InstanceMetadata
@@ -1710,23 +1709,22 @@ dns_nameservers = %(dns_nameservers)s
         #
         vcpus = 0
 
-        with DbManager().session() as dbSession:
-            try:
-                node = NodesDbHandler().getNode(dbSession, name)
+        try:
+            node = NodesDbHandler().getNode(self.session, name)
 
-                session = AzureSession(
-                    config=self.get_node_resource_adapter_config(node)
-                )
+            session = AzureSession(
+                config=self.get_node_resource_adapter_config(node)
+            )
 
-                vcpus = session.config.get('vcpus', 0)
-                if not vcpus:
-                    vcpus = self.get_core_count(session,
-                                                session.config['location'],
-                                                session.config['size'])
-            except NodeNotFound:
-                pass
+            vcpus = session.config.get('vcpus', 0)
+            if not vcpus:
+                vcpus = self.get_core_count(session,
+                                            session.config['location'],
+                                            session.config['size'])
+        except NodeNotFound:
+            pass
 
-            return vcpus
+        return vcpus
 
 
 def get_vm_name(name):
