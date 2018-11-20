@@ -48,7 +48,8 @@ from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
 from tortuga.node import state
-from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter
+from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter, \
+    DEFAULT_CONFIGURATION_PROFILE_NAME
 from tortuga.resourceAdapterConfiguration import settings
 
 
@@ -436,7 +437,7 @@ class AzureAdapter(ResourceAdapter):
         """
 
         cfgname = addNodesRequest.get('resource_adapter_configuration')
-        if cfgname is None or cfgname == 'default':
+        if cfgname is None or cfgname == DEFAULT_CONFIGURATION_PROFILE_NAME:
             # use default resource adapter configuration, if set
             cfgname = hardwareprofile.default_resource_adapter_config.name \
                 if hardwareprofile.default_resource_adapter_config else None

@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from tortuga.cli.tortugaCli import TortugaCli
 from tortuga.db.dbManager import DbManager
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
+from tortuga.resourceAdapter.resourceAdapter import DEFAULT_CONFIGURATION_PROFILE_NAME
 from tortuga.resourceAdapterConfiguration.api import \
     ResourceAdapterConfigurationApi
 
@@ -83,8 +84,8 @@ class ResourceAdapterSetup(TortugaCli):
         self.interactive = args.interactive
 
         config: Dict[str, str] = self.get_config()
-        self._write_config_to_file(config, 'default')
-        self._write_config_to_db(config, 'default')
+        self._write_config_to_file(config, DEFAULT_CONFIGURATION_PROFILE_NAME)
+        self._write_config_to_db(config, DEFAULT_CONFIGURATION_PROFILE_NAME)
 
     def format(self, msg: str, *args, **kwargs):
         """
@@ -149,7 +150,7 @@ class ResourceAdapterSetup(TortugaCli):
                                            profile
 
         """
-        section = 'resource-adapter' if profile == 'default' else profile
+        section = 'resource-adapter' if profile == DEFAULT_CONFIGURATION_PROFILE_NAME else profile
         cfg = ConfigParser()
         cfg.add_section(section)
 
@@ -959,8 +960,8 @@ class ResourceAdapterSetup(TortugaCli):
         self._run_completed = True
 
         config: Dict[str, str] = self.get_config()
-        self._write_config_to_file(config, 'default')
-        self._write_config_to_db(config, 'default')
+        self._write_config_to_file(config, DEFAULT_CONFIGURATION_PROFILE_NAME)
+        self._write_config_to_db(config, DEFAULT_CONFIGURATION_PROFILE_NAME)
 
     def _select_object(self, name: str, name_attr: str,
                        create: bool = True,
