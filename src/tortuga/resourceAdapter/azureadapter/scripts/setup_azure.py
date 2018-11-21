@@ -291,7 +291,14 @@ class ResourceAdapterSetup(TortugaCli):
         """
         print('Getting application list...')
 
-        return self._run_az(['ad', 'app', 'list'])
+        #
+        # This filter is a bit of a hack. I tried to pick a filter that would
+        # return all applications. Without the filter, the command will
+        # print a warning message stating that the result set will be
+        # limited.
+        #
+        return self._run_az(['ad', 'app', 'list',
+                             '--filter=signInAudience eq \'AzureADMyOrg\''])
 
     def _create_application(self):
         """
