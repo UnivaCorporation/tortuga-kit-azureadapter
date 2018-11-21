@@ -536,7 +536,7 @@ class AzureAdapter(ResourceAdapter):
             )
 
             node.instance = InstanceMapping(
-                metadata=[
+                instance_metadata=[
                     InstanceMetadata(key='vm_name', value=vm_name),
                 ],
                 resource_adapter_configuration=adapter_cfg,
