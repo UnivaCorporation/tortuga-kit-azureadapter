@@ -6,6 +6,7 @@ services:
 before_install:
 - docker pull univa/tortuga-build-kit:stable
 install:
+- chmod -R a-w .
 - docker run -it --rm -v `pwd`:/kit-src univa/tortuga-build-kit:stable
 script:
 - echo "Done"
