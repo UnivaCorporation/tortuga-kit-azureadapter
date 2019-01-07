@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tortuga.kit.mixins.resource_adapter import \
-    ResourceAdapterManagementComponentInstaller
 
+class tortuga_kit_azureadapter::params {
+  $major_version = '7.0'
+  $version = '7.0.2'
 
-class ComponentInstaller(ResourceAdapterManagementComponentInstaller):
-    name = 'management'
-    version = '7.0.0'
-    os_list = [
-        {'family': 'rhel', 'version': '7', 'arch': 'x86_64'},
-    ]
+  $kitdescr = "azureadapter-${version}-0"
+}

@@ -4,10 +4,10 @@ python:
 services:
 - docker
 before_install:
-- docker pull univa/tortuga-build-kit:v7.0.1-latest
+- docker pull univa/tortuga-build-kit:master-latest
 install:
 - chmod -R a-w .
-- docker run -it --rm -v `pwd`:/kit-src univa/tortuga-build-kit:v7.0.1-latest
+- docker run -it --rm -v `pwd`:/kit-src univa/tortuga-build-kit:master-latest
 script:
 - echo "Done"
 deploy:
