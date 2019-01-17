@@ -1,0 +1,6 @@
+urllib3==1.22
+azure-cli
+colorama
+gevent
+msrestazure<0.5.0
+Jinja2

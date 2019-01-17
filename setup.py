@@ -17,7 +17,21 @@ import subprocess
 
 from setuptools import find_packages, setup
 
+
 version = '7.0.2'
+
+
+if os.getenv('RELEASE'):
+    requirements_file = 'requirements.txt'
+else:
+    requirements_file = 'requirements-dev.txt'
+
+
+print("Using requirements file [{}]".format(requirements_file))
+
+
+with open(requirements_file) as fp:
+    requirements = [buf.rstrip() for buf in fp.readlines()]
 
 
 def get_git_revision():
@@ -52,18 +66,7 @@ setup(
         'tortuga.resourceAdapter'
     ],
     zip_safe=False,
-    install_requires=[
-        #
-        # We need to pin urllib3 here otherwise requests
-        # (required by azure-cli) breaks and throws warning messages
-        #
-        'urllib3==1.22',
-        'azure-cli',
-        'colorama',
-        'gevent',
-        'msrestazure<0.5.0',
-        'Jinja2',
-    ],
+    install_requires=requirements,
     entry_points = {
         'console_scripts': [
             'setup-azure=tortuga.resourceAdapter.azureadapter.scripts.setup_azure:main'
