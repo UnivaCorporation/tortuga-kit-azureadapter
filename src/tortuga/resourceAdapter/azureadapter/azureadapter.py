@@ -230,7 +230,7 @@ class AzureAdapter(ResourceAdapter):
 
         """
 
-        self.getLogger().debug(
+        self._logger.debug(
             'start(): addNodesRequest=[{0}], dbSession=[{1}],'
             ' dbHardwareProfile=[{2}], dbSoftwareProfile=[{3}]'.format(
                 addNodesRequest, dbSession, dbHardwareProfile,
@@ -249,7 +249,7 @@ class AzureAdapter(ResourceAdapter):
                 dbSoftwareProfile)
 
         if len(nodes) < addNodesRequest['count']:
-            self.getLogger().warning(
+            self._logger.warning(
                 '{0} node(s) requested, only {1} launched'
                 ' successfully'.format(
                     addNodesRequest['count'], len(nodes)))
@@ -262,7 +262,7 @@ class AzureAdapter(ResourceAdapter):
 
         time_delta = end_time - start_time
 
-        self.getLogger().debug(
+        self._logger.debug(
             'start() session [{0}] completed in'
             ' {1:.2f} seconds'.format(
                 self.addHostSession,
@@ -383,7 +383,7 @@ class AzureAdapter(ResourceAdapter):
                     ' unmanaged disks')
 
         if 'ssd' in config and not config.get('use_managed_disks', None):
-            self.getLogger().warning('Ignoring "ssd" setting; must be set in '
+            self._logger.warning('Ignoring "ssd" setting; must be set in '
                                      'storage account settings')
 
         #
@@ -457,17 +457,17 @@ class AzureAdapter(ResourceAdapter):
                     addNodesRequest['extra_args']['ssh-key-value'])
 
         if 'cloud_init_script_template' in azure_session.config:
-            self.getLogger().info(
+            self._logger.info(
                 'Using cloud-init template [{0}]'.format(
                     azure_session.config['cloud_init_script_template']))
         elif 'user_data_script_template' in azure_session.config:
-            self.getLogger().info(
+            self._logger.info(
                 'Using custom data script template [{0}]'.format(
                     azure_session.config['user_data_script_template']))
 
         if azure_session.config['use_managed_disks'] and \
                 'storage_account' in azure_session.config:
-            self.getLogger().info(
+            self._logger.info(
                 'Ignoring \'storage_account\' setting'
                 ' because VM image is being used.')
 
@@ -568,7 +568,7 @@ class AzureAdapter(ResourceAdapter):
 
         # Operation failed, cleanup...
 
-        self.getLogger().error(
+        self._logger.error(
             'Error launching requested instances. Cleaning up...')
 
         successful_node_requests = []
@@ -602,7 +602,7 @@ class AzureAdapter(ResourceAdapter):
                 node = node_request['node']
                 vm_name = get_vm_name(node.name)
 
-                self.getLogger().debug(
+                self._logger.debug(
                     'Waiting for VM [{}]...'.format(vm_name))
 
                 start_time = datetime.datetime.utcnow()
@@ -612,7 +612,7 @@ class AzureAdapter(ResourceAdapter):
 
                 time_delta = datetime.datetime.utcnow() - start_time
 
-                self.getLogger().debug(
+                self._logger.debug(
                     'VM [{0}] launched successfully after {1}'
                     ' seconds'.format(
                         vm_name,
@@ -679,7 +679,7 @@ class AzureAdapter(ResourceAdapter):
 
         vm_name = get_vm_name(node.name)
 
-        self.getLogger().info('Launching VM [{}]'.format(vm_name))
+        self._logger.info('Launching VM [{}]'.format(vm_name))
 
         custom_data = self.__get_custom_data(azure_session, node)
 
@@ -696,14 +696,14 @@ class AzureAdapter(ResourceAdapter):
             node_request['exception'] = exc
 
             if isinstance(exc, azure_exceptions.CloudError):
-                self.getLogger().error(
+                self._logger.error(
                     'Error launching VM [{0}]: {1}'.format(
                         vm_name, exc.message
                     )
                 )
 
             if isinstance(exc, TimeoutError):
-                self.getLogger().error(
+                self._logger.error(
                     'Timed out launching VM [{}]'.format(
                         vm_name
                     )
@@ -719,7 +719,7 @@ class AzureAdapter(ResourceAdapter):
             self.__azure_delete_network_interface(
                 azure_session, '{0}-nic'.format(vm_name))
         except azure_exceptions.CloudError as exc2:
-            self.getLogger().debug(
+            self._logger.debug(
                 'Error attempting to remove nic for failed'
                 ' VM: {0}'.format(exc2.message))
 
@@ -756,7 +756,7 @@ class AzureAdapter(ResourceAdapter):
 
             vm_name = get_vm_name(node_request['node'].name)
 
-            self.getLogger().debug(
+            self._logger.debug(
                 'Waiting {0:.2f} seconds for VM [{1}]'.format(
                     sleeptime, vm_name))
 
@@ -800,7 +800,7 @@ class AzureAdapter(ResourceAdapter):
 
     def __get_custom_data(self, azure_session, node):
             # pylint: disable=unused-argument
-        self.getLogger().debug(
+        self._logger.debug(
             '__get_custom_data(): node=[{0}]'.format(node.name))
 
         if 'cloud_init_script_template' in azure_session.config:
@@ -833,7 +833,7 @@ class AzureAdapter(ResourceAdapter):
     def __get_bootstrap_script(self, configDict, node):
         """Generate node-specific custom data from template"""
 
-        self.getLogger().info(
+        self._logger.info(
             'Using cloud-init script template [%s]' % (
                 configDict['user_data_script_template']))
 
@@ -880,7 +880,7 @@ dns_nameservers = %(dns_nameservers)s
 
         vm_name = get_vm_name(node.name)
 
-        self.getLogger().debug(
+        self._logger.debug(
             '__create_vm(): vm_name=[{0}]'.format(vm_name))
 
         # Create network interface
@@ -1027,11 +1027,11 @@ dns_nameservers = %(dns_nameservers)s
             errmsg = 'SSH key file [{0}] does not exist'.format(
                 ssh_key_value)
 
-            self.getLogger().error('{0}'.format(errmsg))
+            self._logger.error('{0}'.format(errmsg))
 
             raise ConfigurationError(errmsg)
 
-        self.getLogger().debug(
+        self._logger.debug(
             'Reading ssh public key [{0}]'.format(ssh_key_value))
 
         with open(ssh_key_value) as fp:
@@ -1046,7 +1046,7 @@ dns_nameservers = %(dns_nameservers)s
             msrestazure.azure_exceptions.CloudError
         """
 
-        self.getLogger().debug(
+        self._logger.debug(
             'Creating network interface for VM [{}]'.format(
                 vm_name))
 
@@ -1127,7 +1127,7 @@ dns_nameservers = %(dns_nameservers)s
             msrestazure.azure_exceptions.CloudError
         """
 
-        self.getLogger().debug(
+        self._logger.debug(
             '__azure_get_vm(): vm_name=[{0}]'.format(vm_name))
 
         return session.compute_client.virtual_machines.get(
@@ -1139,7 +1139,7 @@ dns_nameservers = %(dns_nameservers)s
             ResourceNotFound
         """
 
-        self.getLogger().debug(
+        self._logger.debug(
             '__azure_delte_vhd(): blob_name=[{0}]'.format(
                 blob_name))
 
@@ -1187,7 +1187,7 @@ dns_nameservers = %(dns_nameservers)s
                     # Break out of retry loop
                     break
             except Exception as exc:
-                self.getLogger().warning(
+                self._logger.warning(
                     'Error attempting to delete managed disk'
                     ' {}: {}'.format(disk_name, exc))
 
@@ -1197,13 +1197,13 @@ dns_nameservers = %(dns_nameservers)s
             retries += 1
 
         if retries == 5:
-            self.getLogger().error(
+            self._logger.error(
                 'Exceeded retry limit attempting to delete managed'
                 ' disk [{}]'.format(disk_name))
 
             return False
 
-        self.getLogger().info(
+        self._logger.info(
             'Managed disk [{}] deleted successfully'.format(
                 disk_name))
 
@@ -1228,7 +1228,7 @@ dns_nameservers = %(dns_nameservers)s
             # Re-raise all other exceptions
             raise
 
-        self.getLogger().debug(
+        self._logger.debug(
             'Deleting network interface [{0}]'.format(
                 interface_id))
 
@@ -1254,7 +1254,7 @@ dns_nameservers = %(dns_nameservers)s
                     break
             except Exception as exc:
                 # TODO: ensure non-recoverable errors are handled
-                self.getLogger().warning(
+                self._logger.warning(
                     'Failure attempting to delete network interface'
                     ' {}'.format(interface_id))
 
@@ -1264,7 +1264,7 @@ dns_nameservers = %(dns_nameservers)s
             gevent.sleep(10)
 
         if retries == 5:
-            self.getLogger().error(
+            self._logger.error(
                 'unable to delete network interface {}'.format(
                     interface_id))
 
@@ -1290,7 +1290,7 @@ dns_nameservers = %(dns_nameservers)s
             msrestazure.azure_exceptions.CloudError
         """
 
-        self.getLogger().debug(
+        self._logger.debug(
             '__azure_delete_ip_configuration(): '
             'ip_configuration_id=[{0}]'.format(ip_configuration_id))
 
@@ -1314,7 +1314,7 @@ dns_nameservers = %(dns_nameservers)s
                     # Break out of retry loop
                     break
             except Exception as exc:
-                self.getLogger().warning(
+                self._logger.warning(
                     'Failure attempting to delete IP configuration'
                     ' {}: {}'.format(ip_configuration_id, exc))
 
@@ -1324,7 +1324,7 @@ dns_nameservers = %(dns_nameservers)s
             return False
 
         # Success
-        self.getLogger().info(
+        self._logger.info(
             'IP configuration [{}] deleted successfully'.format(
                 ip_configuration_id))
 
@@ -1419,14 +1419,14 @@ dns_nameservers = %(dns_nameservers)s
                     blob_name = os.path.basename(
                         vm.storage_profile.os_disk.vhd.uri)
 
-                    self.getLogger().debug(
+                    self._logger.debug(
                         'Deleting [{0}] os disk [{1}]'.format(
                             vm_name, blob_name))
 
                     try:
                         self.__azure_delete_vhd(session, blob_name)
                     except ResourceNotFound:
-                        self.getLogger().info(
+                        self._logger.info(
                             'Azure blob [{0}] does not exist'.format(
                                 blob_name))
                 elif vm.storage_profile.os_disk.managed_disk:
@@ -1435,14 +1435,14 @@ dns_nameservers = %(dns_nameservers)s
                     try:
                         self.__azure_delete_managed_disk(session, disk_name)
                     except ResourceNotFound:
-                        self.getLogger().info(
+                        self._logger.info(
                             'Managed disk [{0}] does not exist'.format(
                                 disk_name))
 
-                self.getLogger().info(
+                self._logger.info(
                     'VM [{0}] deleted'.format(vm_name))
             except Exception as exc:
-                self.getLogger().error(
+                self._logger.error(
                     'Error deleting VM [{0}]: {1}'.format(vm_name, exc))
             finally:
                 wait_queue.task_done()
@@ -1477,7 +1477,7 @@ dns_nameservers = %(dns_nameservers)s
                 temp = min(max_sleep_time, sleep_interval * 2 ** retries)
                 sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
 
-            self.getLogger().debug(
+            self._logger.debug(
                 '{0}sleeping {1:.2f} seconds on async request'.format(
                     logmsg_prefix, sleeptime))
 
@@ -1514,7 +1514,7 @@ dns_nameservers = %(dns_nameservers)s
             try:
                 azure_session, vm_name = q.get()
 
-                self.getLogger().info(
+                self._logger.info(
                     'Rebooting VM [{}]'.format(vm_name))
 
                 response = \
@@ -1524,7 +1524,7 @@ dns_nameservers = %(dns_nameservers)s
                 while not response.done():
                     gevent.sleep(5)
 
-                self.getLogger().debug(
+                self._logger.debug(
                     'VM [{}] restart async operation'
                     ' complete'.format(vm_name))
             except azure_exceptions.CloudError as exc:
@@ -1532,7 +1532,7 @@ dns_nameservers = %(dns_nameservers)s
                     # Quietly ignore "not found" error
                     continue
 
-                self.getLogger().error(
+                self._logger.error(
                     'Error restarting VM [{}]'.format(vm_name))
             finally:
                 q.task_done()
@@ -1584,7 +1584,7 @@ dns_nameservers = %(dns_nameservers)s
 
             try:
                 try:
-                    self.getLogger().info(
+                    self._logger.info(
                         'Starting VM [{}]'.format(vm_name))
 
                     response = \
@@ -1594,11 +1594,11 @@ dns_nameservers = %(dns_nameservers)s
                     while not response.done():
                         gevent.sleep(5)
 
-                    self.getLogger().debug(
+                    self._logger.debug(
                         'VM [{}] async start VM operation'
                         ' complete'.format(vm_name))
                 except Exception as exc:
-                    self.getLogger().exception(
+                    self._logger.exception(
                         'Error starting VM(s): {}'.format(exc))
 
                     raise
@@ -1627,7 +1627,7 @@ dns_nameservers = %(dns_nameservers)s
 
             try:
                 try:
-                    self.getLogger().info(
+                    self._logger.info(
                         'Powering VM off [{}]'.format(vm_name))
 
                     response = \
@@ -1637,11 +1637,11 @@ dns_nameservers = %(dns_nameservers)s
                     while not response.done():
                         gevent.sleep(5)
 
-                    self.getLogger().debug(
+                    self._logger.debug(
                         'VM [{}] async power off operation'
                         ' complete'.format(vm_name))
                 except Exception as exc:
-                    self.getLogger().exception(
+                    self._logger.exception(
                         'Error powering off VM(s): {}'.format(exc))
 
                     raise
@@ -1656,7 +1656,7 @@ dns_nameservers = %(dns_nameservers)s
                 )
             except ResourceNotFound:
                 # Unable to determine resource adapter configuration
-                self.getLogger().error(
+                self._logger.error(
                     'Unable to determine resource adapter'
                     ' configuration for node [{0}]'.format(node.name))
 
@@ -1670,7 +1670,7 @@ dns_nameservers = %(dns_nameservers)s
                     vm_name = md.value
                     break
             else:
-                self.getLogger().warning(
+                self._logger.warning(
                     'Unable to determine VM name for'
                     ' node [{}]'.format(node.name))
 
@@ -1691,7 +1691,7 @@ dns_nameservers = %(dns_nameservers)s
                 return result.number_of_cores
 
         # Unable to determine VM size, use default
-        self.getLogger().warning(
+        self._logger.warning(
             'Unrecognized Azure VM size [{0}]. Using default core'
             ' count {1:d}'.format(vm_size, default))
 
