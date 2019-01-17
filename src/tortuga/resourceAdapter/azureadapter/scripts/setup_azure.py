@@ -43,10 +43,12 @@ class APIError(Exception):
 class ResourceAdapterSetup(TortugaCli):
     verbose = False
     interactive = False
+    same_image = False
     adapter_type = 'azure'
 
     DEFAULT_URN = 'OpenLogic:CentOS-CI:7-CI:latest'
     DEFAULT_BOOTSTRAP = 'azure_rhel_conf.py'
+    DEFAULT_USERNAME = 'centos'
 
     def __init__(self):
         super().__init__()
@@ -89,6 +91,11 @@ class ResourceAdapterSetup(TortugaCli):
                               default=False, action='store_true',
                               help='Interactive setup (not automatic)')
 
+        self.addOptionToGroup(option_group_name,
+                              '--same-image-as-installer', dest='same_image',
+                              default=False, action='store_true',
+                              help='Use the same image URN as the installer')
+
         super().parseArgs(usage=usage)
 
     def runCommand(self):
@@ -96,10 +103,21 @@ class ResourceAdapterSetup(TortugaCli):
         args = self.getArgs()
         self.verbose = args.verbose
         self.interactive = args.interactive
+        self.same_image = args.same_image
 
         config: Dict[str, str] = self.get_config()
         self._write_config_to_file(config, DEFAULT_CONFIGURATION_PROFILE_NAME)
         self._write_config_to_db(config, DEFAULT_CONFIGURATION_PROFILE_NAME)
+
+        #
+        # Output warnings
+        #
+        print('********************')
+        if self._selected_image['urn'] != self.DEFAULT_URN:
+            self._print_non_default_image_message(self._selected_image['urn'])
+        else:
+            self._print_default_image_message()
+        print('********************')
 
     def format(self, msg: str, *args, **kwargs):
         """
@@ -825,7 +843,8 @@ class ResourceAdapterSetup(TortugaCli):
         # node
         #
         if not self.interactive and self._az_compute_node:
-            if self._az_compute_node['compute']['publisher'] and \
+            if self.same_image and \
+                    self._az_compute_node['compute']['publisher'] and \
                     self._az_compute_node['compute']['offer'] and \
                     self._az_compute_node['compute']['sku'] and \
                     self._az_compute_node['compute']['version']:
@@ -1074,7 +1093,7 @@ class ResourceAdapterSetup(TortugaCli):
                 'storage_account': self._selected_storage_account['name'],
                 'location': self._selected_resource_group['location'],
                 'size': self._selected_vm_size['name'],
-                'default_login': 'ubuntu',
+                'default_login': self.DEFAULT_USERNAME,
                 'security_group':
                     self._selected_network_security_group['name'],
                 'virtual_network_name':
@@ -1096,6 +1115,41 @@ class ResourceAdapterSetup(TortugaCli):
             raise
 
         return config
+
+    def _print_default_image_message(self):
+        print(
+            'The {} resource adapter configuration profile'.format(
+                DEFAULT_CONFIGURATION_PROFILE_NAME),
+            'has been setup to use the following image URN: {}. '.format(
+                self.DEFAULT_URN) +
+            'This is the default, and is known to work. ' +
+            'If you would like to use the same image URN as the ' +
+            'installer, re-run the setup as follows: \n\n' +
+            '    setup-azure --same-image-as-installer\n\n' +
+            'If you would like to specify a different image URN ' +
+            'altogether, you can do so as follows:\n\n' +
+            '    adapter-mgmt update -r {} -p {} -s image_urn=<URN>\n\n'.format(
+                self.adapter_type, DEFAULT_CONFIGURATION_PROFILE_NAME) +
+            'PLEASE NOTE: If you change the image URN from the default ' +
+            'value make sure you have thoroughly read the documentation ' +
+            'and understand the requirements for images to work as ' +
+            'tortuga nodes.'
+        )
+
+    def _print_non_default_image_message(self, urn: str):
+        print(
+            'The {} resource adapter configuration profile '.format(urn) +
+            'has been setup to use the following image URN: {}. '.format(
+                self.DEFAULT_URN) +
+            'This is NOT THE DEFAULT, and therefore it MAY NOT WORK. ' +
+            'Make sure you have thoroughly read the documentation ' +
+            'and understand the requirements for images to work as ' +
+            'tortuga nodes. If you would like to revert to the default, ' +
+            'you can do so as follows:\n\n' +
+            '    adapter-mgmt update -r {} -p {} -s image_urn={}\n\n'.format(
+                self.adapter_type, DEFAULT_CONFIGURATION_PROFILE_NAME,
+                DEFAULT_URN)
+        )
 
 
 def url_valid(url: str) -> bool:
