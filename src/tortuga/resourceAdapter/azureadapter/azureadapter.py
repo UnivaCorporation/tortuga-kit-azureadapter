@@ -84,7 +84,8 @@ class AzureAdapter(ResourceAdapter):
         'secret': settings.StringSetting(
             required=True,
             description='Azure client secret; obtainable from azure CLI or '
-                        'Management Portal'
+                        'Management Portal',
+            secret=True
         ),
         'security_group': settings.StringSetting(
             required=True,
