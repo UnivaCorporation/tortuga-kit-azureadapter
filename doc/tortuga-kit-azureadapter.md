@@ -217,12 +217,12 @@ location, VM size, virtual network, subnet, security group, etc.
 Use the `adapter-mgmt` tool to create/update the resource adapter
 configuration profile.
 
-1. **Create `default` Resource Adapter Configuration Profile**
+1. **Create `Default` Resource Adapter Configuration Profile**
 
     This example configures the Azure resource adapter to use Ubuntu
     16.04 (Xenial) compute nodes.
 
-        adapter-mgmt create --resource-adapter azure --profile default \
+        adapter-mgmt create --resource-adapter azure --profile Default \
             -s subscription_id=<Azure subscription id> \
             -s client_id=<client id> \
             -s tenant_id=<tenant id> \
@@ -247,12 +247,12 @@ configuration profile.
     Resource adapter configuration profiles can be updated using
     `adapter-mgmt update`.
 
-    Use `adapter-mgmt show -r azure -p default` to display current
+    Use `adapter-mgmt show -r azure -p Default` to display current
     settings:
 
-        [root@tortuga ~]# adapter-mgmt show -r azure -p default
+        [root@tortuga ~]# adapter-mgmt show -r azure -p Default
         Resource adapter: azure
-        Profile: default
+        Profile: Default
         Configuration:
           - client_id = <REDACTED>
           - default_login = ubuntu
@@ -310,7 +310,7 @@ Example:
 
 ```shell
 adapter-mgmt update --resource-adapter azure \
-    --profile default \
+    --profile Default \
     --setting "tags=owner:admin"
 ```
 
@@ -318,7 +318,7 @@ Tag name/values containing spaces:
 
 ```shell
 adapter-mgmt update --resource-adapter azure \
-    --profile default \
+    --profile Default \
     --setting tags="key:value \"this is the tag name:this is the tag value\""
 ```
 
@@ -604,7 +604,7 @@ Override the default Azure DNS settings by setting `override_dns_domain`
 in the Azure resource adapter configuration:
 
 ```shell
-adapter-mgmt update --resource-adapter azure --profile default \
+adapter-mgmt update --resource-adapter azure --profile Default \
     -s override_dns_domain=true \
     -s dns_domain cloud.univa.com
 ```
