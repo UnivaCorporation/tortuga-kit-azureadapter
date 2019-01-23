@@ -238,6 +238,12 @@ configuration profile.
             -s image_urn=Canonical:UbuntuServer:16.04.0-LTS:latest \
             -s user_data_script_template=ubuntu_bootstrap.py.tmpl
 
+    **Note:** If you set the location, subnet, or security group to
+    be different than that of the Tortuga Installer, it WILL NOT WORK
+    by default, as additional networking setup will need to be done in
+    Azure. The details of these configuration changes are highly
+    case-specific, and thus are not covered in this document.
+
     **Note:** the default CentOS images provided by OpenLogic do not enable
     `cloud-init` or the Microsoft Azure Linux Guest Agent
     (aka *waagent*). This prevents them for being used as
