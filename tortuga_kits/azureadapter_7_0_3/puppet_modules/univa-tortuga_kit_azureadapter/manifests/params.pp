@@ -15,7 +15,7 @@
 
 class tortuga_kit_azureadapter::params {
   $major_version = '7.0'
-  $version = '7.0.2'
+  $version = '7.0.3'
 
   $kitdescr = "azureadapter-${version}-0"
 }
