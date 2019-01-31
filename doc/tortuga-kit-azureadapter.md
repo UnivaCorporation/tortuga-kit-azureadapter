@@ -642,21 +642,11 @@ server setting is applied **unless** `override_dns_domain` is enabled.
 The [Microsoft Azure][azure] resource adapter supports the following
 Tortuga node management commands:
 
-- `activate-node`
 - `add-nodes`
 - `delete-node`
-- `idle-node`
 - `reboot-node`
-- `transfer-node`
 - `shutdown-node`
 - `startup-node`
-
-The Azure resource adapter *does not* support the following node
-operation commands as they do not make sense within the context of
-cloud-based compute nodes:
-
-- `checkpoint-node`
-- `migrate-node`
 
 ### Networking considerations
 
