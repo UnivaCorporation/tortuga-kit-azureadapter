@@ -1,4 +1,6 @@
-# Microsoft Azure resource adapter kit
+# Microsoft Azure Resource Adapter Kit
+
+February 2019 -- Version 1.1
 
 ## Overview
 
