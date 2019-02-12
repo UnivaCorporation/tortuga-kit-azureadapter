@@ -20,9 +20,10 @@ import itertools
 import os.path
 import random
 import shlex
-from typing import Any, Dict, List, NoReturn, Optional, Union
+from typing import Any, Dict, Generator, List, NoReturn, Optional, Tuple, Union
 
 from jinja2 import Environment, FileSystemLoader
+from sqlalchemy.orm.session import Session
 
 import gevent
 import gevent.lock
@@ -34,7 +35,6 @@ from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.storage.blob import BlockBlobService
 from msrestazure import azure_exceptions
-from sqlalchemy.orm.session import Session
 from tortuga.db.models.hardwareProfile import HardwareProfile
 from tortuga.db.models.instanceMapping import InstanceMapping
 from tortuga.db.models.instanceMetadata import InstanceMetadata
@@ -1297,7 +1297,7 @@ dns_nameservers = %(dns_nameservers)s
 
         return True
 
-    def deleteNode(self, nodes):
+    def deleteNode(self, nodes: List[Node]) -> None:
         """Delete Azure VMs associated with nodes"""
 
         reqs = []
@@ -1594,8 +1594,17 @@ dns_nameservers = %(dns_nameservers)s
             finally:
                 q.task_done()
 
-    def __iter_vm_name_and_session_tuples(self, nodes):
+    def __iter_vm_name_and_session_tuples(self, nodes: List[Node]) \
+            -> Generator[Tuple[Node, 'AzureSession', str], None, None]:
         for node in nodes:
+            if not node.instance:
+                # ignore node records without backing VM that would exist,
+                # for example, if a previous deletion attempt failed
+                self._logger.warning(
+                    'Unable to determine VM for node [%s]', node.name)
+
+                continue
+
             try:
                 azure_session = AzureSession(
                     config=self.get_node_resource_adapter_config(node)
