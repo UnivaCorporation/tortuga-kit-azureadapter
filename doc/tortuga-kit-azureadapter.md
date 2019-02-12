@@ -17,6 +17,22 @@ Please refer to official [Microsoft Azure
 documentation](https://docs.microsoft.com/en-us/azure/) for further explanation
 of Azure terms referenced within this document.
 
+## Installing Tortuga on Azure
+
+**Note:** please pay attention to the following prerequisites when installing
+Tortuga on Azure.
+
+### Installer DNS host name
+
+Certain applications on RHEL/CentOS (for example, `openssl`) have host
+name/FQDN case-sensitivity when generating certificates/keys. Ensure your Azure
+VM used to install Tortuga does **not** have an uppercase or mixed-case host
+name.
+
+Your Tortuga installation will *likely* fail if the host name/FQDN is
+uppercase/mixed-case.
+
+
 ## Setting up Azure for Tortuga
 
 Before using Tortuga with the [Microsoft Azure][azure] resource adapter, it is
