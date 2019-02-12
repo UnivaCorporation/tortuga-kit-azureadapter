@@ -20,14 +20,13 @@ import itertools
 import os.path
 import random
 import shlex
-from typing import Any, List, NoReturn, Optional, Union, Dict
+from typing import Any, Dict, List, NoReturn, Optional, Union
+
+from jinja2 import Environment, FileSystemLoader
 
 import gevent
 import gevent.lock
 import gevent.queue
-from jinja2 import Environment, FileSystemLoader
-from sqlalchemy.orm.session import Session
-
 from azure.common import AzureMissingResourceHttpError
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
@@ -35,6 +34,7 @@ from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.storage.blob import BlockBlobService
 from msrestazure import azure_exceptions
+from sqlalchemy.orm.session import Session
 from tortuga.db.models.hardwareProfile import HardwareProfile
 from tortuga.db.models.instanceMapping import InstanceMapping
 from tortuga.db.models.instanceMetadata import InstanceMetadata
@@ -48,8 +48,8 @@ from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
 from tortuga.node import state
-from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter, \
-    DEFAULT_CONFIGURATION_PROFILE_NAME
+from tortuga.resourceAdapter.resourceAdapter import (DEFAULT_CONFIGURATION_PROFILE_NAME,
+                                                     ResourceAdapter)
 from tortuga.resourceAdapterConfiguration import settings
 
 
@@ -239,15 +239,12 @@ class AzureAdapter(ResourceAdapter):
 
         start_time = datetime.datetime.utcnow()
 
-        if dbSoftwareProfile is None or dbSoftwareProfile.isIdle:
-            # Create idle nodes
-            nodes = self.__add_idle_nodes(
-                addNodesRequest, dbSession, dbHardwareProfile,
-                dbSoftwareProfile)
-        else:
-            nodes = self.__add_active_nodes(
-                addNodesRequest, dbSession, dbHardwareProfile,
-                dbSoftwareProfile)
+        nodes = self.__add_active_nodes(
+            addNodesRequest,
+            dbSession,
+            dbHardwareProfile,
+            dbSoftwareProfile
+        )
 
         if len(nodes) < addNodesRequest['count']:
             self._logger.warning(
@@ -270,10 +267,6 @@ class AzureAdapter(ResourceAdapter):
                 time_delta.seconds + time_delta.microseconds / 1000000.0))
 
         return nodes
-
-    def __add_idle_nodes(self, addNodesRequest, dbsession: Session,
-                         hardwareprofile, softwareprofile):
-        """Add idle node records"""
 
     def __create_node(self, session: Session, hardwareprofile,
                       softwareprofile,
@@ -306,20 +299,13 @@ class AzureAdapter(ResourceAdapter):
                 # Handle adapter-specific DNS domain (ie. multi-cloud)
                 name = '{0}.{1}'.format(hostname, override_dns_domain)
 
-        node = Node(name=name)
-
-        node.state = state.NODE_STATE_LAUNCHING
-
-        node.isIdle = softwareprofile is None
-
-        node.hardwareprofile = hardwareprofile
-
-        if softwareprofile and not node.isIdle:
-            node.softwareprofile = softwareprofile
-
-        node.addHostSession = self.addHostSession
-
-        return node
+        return Node(
+            name=name,
+            state=state.NODE_STATE_LAUNCHING,
+            hardwareprofile=hardwareprofile,
+            softwareprofile=softwareprofile,
+            addHostSession=self.addHostSession,
+        )
 
     def __create_nodes(self, count: int, session: Session,
                        hardwareprofile: HardwareProfile,
@@ -478,7 +464,8 @@ class AzureAdapter(ResourceAdapter):
             dbSession,
             hardwareprofile,
             softwareprofile,
-            azure_session.config)
+            azure_session.config
+        )
 
         # Commit Nodes to database
         dbSession.add_all(nodes)
@@ -1101,27 +1088,6 @@ dns_nameservers = %(dns_nameservers)s
             async_nic_creation, tag='create_nic', max_sleep_time=10000,
             initial_sleep_time=10000)
 
-    def suspendActiveNode(self, nodeId): \
-            # pylint: disable=unused-argument,no-self-use
-
-        # Suspend is not currently supported for cloud-based instances
-        return False
-
-    def idleActiveNode(self, dbNodes):
-        """
-        Idle specified nodes
-        """
-
-    def activateIdleNode(self, node, softwareProfileName,
-                         softwareProfileChanged):
-        """
-        Activate idled node.
-
-        'softwareProfileName' is the current software profile of the node to
-        be activated.  'softwareProfileChanged' is a bool that will indicate
-        if the node has moved to a new software profile.
-        """
-
     def __azure_get_vm(self, session, vm_name):
         """
         Raises:
@@ -1539,27 +1505,6 @@ dns_nameservers = %(dns_nameservers)s
                 q.task_done()
 
             continue
-
-    def transferNode(self, nodeIdSoftwareProfileTuples,
-                     newSoftwareProfileName): \
-            # pylint: disable=unused-argument,no-self-use
-        """Transfer nodes to new software profile
-
-        Raises:
-            OperationFailed
-        """
-
-        raise OperationFailed('Transferring nodes not supported in Azure')
-
-    def migrateNode(self, node, remainingNodeList,
-                    liveMigrate=True): \
-            # pylint: disable=unused-argument,no-self-use
-        """
-        Raises:
-            OperationFailed
-        """
-
-        raise OperationFailed('Azure nodes cannot be migrated')
 
     def startupNode(self, nodes, remainingNodeList=[],
                     tmpBootMethod='n'): \

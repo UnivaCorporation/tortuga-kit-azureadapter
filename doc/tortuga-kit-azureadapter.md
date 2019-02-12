@@ -1,4 +1,6 @@
-# Microsoft Azure resource adapter kit
+# Microsoft Azure Resource Adapter Kit
+
+February 2019 -- Version 1.1
 
 ## Overview
 
@@ -195,13 +197,13 @@ Install the Azure resource adapter kit by running the following
 command as `root` on a Tortuga installer host:
 
 ```shell
-install-kit --i-accept-the-eula kit-azureadapter-7.0.2-0.tar.bz2
+install-kit --i-accept-the-eula kit-azureadapter-7.0.3-0.tar.bz2
 ```
 
 The Azure resource adapter is enabled as follows, again run as `root`:
 
 ```shell
-enable-component -p azureadapter-7.0.2-0 management-7.0.2
+enable-component -p azureadapter-7.0.3-0 management-7.0.3
 ```
 
 The Azure resource adapter kit is now installed and ready to be
@@ -217,12 +219,12 @@ location, VM size, virtual network, subnet, security group, etc.
 Use the `adapter-mgmt` tool to create/update the resource adapter
 configuration profile.
 
-1. **Create `default` Resource Adapter Configuration Profile**
+1. **Create `Default` Resource Adapter Configuration Profile**
 
     This example configures the Azure resource adapter to use Ubuntu
     16.04 (Xenial) compute nodes.
 
-        adapter-mgmt create --resource-adapter azure --profile default \
+        adapter-mgmt create --resource-adapter azure --profile Default \
             -s subscription_id=<Azure subscription id> \
             -s client_id=<client id> \
             -s tenant_id=<tenant id> \
@@ -238,6 +240,12 @@ configuration profile.
             -s image_urn=Canonical:UbuntuServer:16.04.0-LTS:latest \
             -s user_data_script_template=ubuntu_bootstrap.py.tmpl
 
+    **Note:** If you set the location, subnet, or security group to
+    be different than that of the Tortuga Installer, it WILL NOT WORK
+    by default, as additional networking setup will need to be done in
+    Azure. The details of these configuration changes are highly
+    case-specific, and thus are not covered in this document.
+
     **Note:** the default CentOS images provided by OpenLogic do not enable
     `cloud-init` or the Microsoft Azure Linux Guest Agent
     (aka *waagent*). This prevents them for being used as
@@ -247,12 +255,12 @@ configuration profile.
     Resource adapter configuration profiles can be updated using
     `adapter-mgmt update`.
 
-    Use `adapter-mgmt show -r azure -p default` to display current
+    Use `adapter-mgmt show -r azure -p Default` to display current
     settings:
 
-        [root@tortuga ~]# adapter-mgmt show -r azure -p default
+        [root@tortuga ~]# adapter-mgmt show -r azure -p Default
         Resource adapter: azure
-        Profile: default
+        Profile: Default
         Configuration:
           - client_id = <REDACTED>
           - default_login = ubuntu
@@ -310,7 +318,7 @@ Example:
 
 ```shell
 adapter-mgmt update --resource-adapter azure \
-    --profile default \
+    --profile Default \
     --setting "tags=owner:admin"
 ```
 
@@ -318,7 +326,7 @@ Tag name/values containing spaces:
 
 ```shell
 adapter-mgmt update --resource-adapter azure \
-    --profile default \
+    --profile Default \
     --setting tags="key:value \"this is the tag name:this is the tag value\""
 ```
 
@@ -604,7 +612,7 @@ Override the default Azure DNS settings by setting `override_dns_domain`
 in the Azure resource adapter configuration:
 
 ```shell
-adapter-mgmt update --resource-adapter azure --profile default \
+adapter-mgmt update --resource-adapter azure --profile Default \
     -s override_dns_domain=true \
     -s dns_domain cloud.univa.com
 ```
@@ -636,21 +644,11 @@ server setting is applied **unless** `override_dns_domain` is enabled.
 The [Microsoft Azure][azure] resource adapter supports the following
 Tortuga node management commands:
 
-- `activate-node`
 - `add-nodes`
 - `delete-node`
-- `idle-node`
 - `reboot-node`
-- `transfer-node`
 - `shutdown-node`
 - `startup-node`
-
-The Azure resource adapter *does not* support the following node
-operation commands as they do not make sense within the context of
-cloud-based compute nodes:
-
-- `checkpoint-node`
-- `migrate-node`
 
 ### Networking considerations
 

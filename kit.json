@@ -1,7 +1,7 @@
 {
   "name": "azureadapter",
-  "version": "7.0.2",
+  "version": "7.0.3",
   "iteration": "0",
   "description": "Azure resource adapter",
-  "requires_core": "7.0.2+002"
+  "requires_core": "7.0.3+000"
 }
