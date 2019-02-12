@@ -310,7 +310,8 @@ class AzureAdapter(ResourceAdapter):
     def __create_nodes(self, count: int, session: Session,
                        hardwareprofile: HardwareProfile,
                        softwareprofile: SoftwareProfile,
-                       configDict: dict) -> List[Node]: \
+                       configDict: dict, *,
+                       metadata: Optional[dict] = None) -> List[Node]: \
             # pylint: disable=unused-argument
         """
         Create nodes records
@@ -320,14 +321,22 @@ class AzureAdapter(ResourceAdapter):
             if not configDict.get('override_dns_domain', None) \
             else configDict['dns_domain']
 
-        return [
-            self.__create_node(
+        nodes: List[Node] = []
+
+        for _ in range(count):
+            node = self.__create_node(
                 session,
                 hardwareprofile,
                 softwareprofile,
-                override_dns_domain=dns_domain)
-            for _ in range(count)
-        ]
+                override_dns_domain=dns_domain
+            )
+
+            if metadata and 'vcpus' in metadata:
+                node.vcpus = metadata['vcpus']
+
+            nodes.append(node)
+
+        return nodes
 
     def process_config(self, config: Dict[str, Any]):
         #
@@ -458,13 +467,22 @@ class AzureAdapter(ResourceAdapter):
                 'Ignoring \'storage_account\' setting'
                 ' because VM image is being used.')
 
+        vcpus = self.get_core_count(
+            azure_session,
+            azure_session.config['location'],
+            azure_session.config['size'],
+        )
+
         # Precreate node records
         nodes = self.__create_nodes(
             addNodesRequest['count'],
             dbSession,
             hardwareprofile,
             softwareprofile,
-            azure_session.config
+            azure_session.config,
+            metadata={
+                'vcpus': vcpus,
+            }
         )
 
         # Commit Nodes to database
