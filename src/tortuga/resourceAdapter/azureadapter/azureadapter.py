@@ -222,7 +222,7 @@ class AzureAdapter(ResourceAdapter):
         )
     }
 
-    def __init__(self, addHostSession: str) -> None:
+    def __init__(self, addHostSession: Optional[str] = None) -> None:
         super().__init__(addHostSession=addHostSession)
 
         self._nodesDbHandler = NodesDbHandler()
