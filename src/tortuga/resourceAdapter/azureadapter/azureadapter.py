@@ -350,8 +350,8 @@ class AzureAdapter(ResourceAdapter):
         #
         # Get the SSH key
         #
-        config['ssh_key_value'] = self.__get_ssh_public_key(
-            config.get('ssh_key_value', None))
+        config['ssh_key_value'] = \
+            self.__get_ssh_public_key(config.get('ssh_key_value'))
 
         #
         # Validate the image/image_urn
@@ -380,20 +380,22 @@ class AzureAdapter(ResourceAdapter):
             #
             config['use_managed_disks'] = True
 
-        if not config.get('use_managed_disks', None):
+        if not config.get('use_managed_disks'):
             if 'storage_account' not in config:
                 raise ConfigurationError(
                     'Azure storage account must be specified when using'
                     ' unmanaged disks')
 
-        if 'ssd' in config and not config.get('use_managed_disks', None):
-            self._logger.warning('Ignoring "ssd" setting; must be set in '
-                                     'storage account settings')
+        if 'ssd' in config and not config.get('use_managed_disks'):
+            self._logger.warning(
+                'Ignoring "ssd" setting; must be set in storage account'
+                ' settings'
+            )
 
         #
         # Parse tags
         #
-        if config.get('tags', None):
+        if config.get('tags'):
             config['tags'] = parse_tags(config['tags'])
 
         #
@@ -410,7 +412,7 @@ class AzureAdapter(ResourceAdapter):
             # If not specified, use 'dns_domain' as the default
             # DNS search when 'override_dns_domain' is enabled
             #
-            if config.get('override_dns_domain', None):
+            if config.get('override_dns_domain'):
                 config['dns_search'] = config['dns_domain']
             #
             # Otherwise default to DNS domain of installer
