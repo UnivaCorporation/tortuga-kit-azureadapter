@@ -1700,6 +1700,36 @@ dns_nameservers = %(dns_nameservers)s
 
         return vcpus
 
+    def _is_component_enabled(self, node: Node, component_name: str,
+                              kit_name: str = 'base') -> bool:
+        """Helper function used to validate start arguments.
+        """
+        for component in node.softwareprofile.components:
+            if component.name == component_name and \
+                    component.kit.name == kit_name:
+                return True
+
+        return False
+
+    def validate_start_arguments(self, addNodesRequest: Dict[str, Any],
+                                 dbHardwareProfile: HardwareProfile,
+                                 dbSoftwareProfile: SoftwareProfile) -> None: \
+            # pylint: disable=unused-argument
+        """Raise an exception if the dns component is not enabled
+
+        :raises ConfigurationError:
+        """
+        installer = dbHardwareProfile.nics[0].node \
+            if dbHardwareProfile.nics else \
+            self._nodesDbHandler.get_installer_node(self.session)
+
+        if not self._is_component_enabled(installer, 'dns'):
+            msg = 'DNS component must be enabled for Azure-based compute nodes'
+
+            self._logger.error(msg)
+
+            raise ConfigurationError(msg)
+
 
 def get_vm_name(name):
     """
