@@ -199,7 +199,6 @@ class AzureAdapter(ResourceAdapter):
                         'server IP.',
             list=True,
             list_separator=' ',
-            default=''
         ),
         'ssh_key_value': settings.StringSetting(
             description='Specifies the SSH public key or public key file '
