@@ -179,7 +179,11 @@ class AzureAdapter(ResourceAdapter):
             description='Space-separated "key=value" pairs',
             list=True
         ),
-        'override_dns_domain': settings.BooleanSetting(),
+        'override_dns_domain': settings.BooleanSetting(
+            display_name='Override DNS domain',
+            description='Enable overriding of instances\' DNS domain',
+            default='False',
+        ),
         'dns_domain': settings.StringSetting(
             requires=['override_dns_domain']
         ),
