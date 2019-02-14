@@ -832,16 +832,29 @@ class AzureAdapter(ResourceAdapter):
 
         template = env.get_template(srcfile)
 
-        tmpl_vars = {
+        tmpl_vars = self.__get_common_tmpl_vars(configDict)
+
+        tmpl_vars.update({
             'installer': self.installer_public_hostname,
             'installer_ip_address': self.installer_public_ipaddress,
-            'override_dns_domain': configDict.get('override_dns_domain', None),
-            'dns_domain': configDict['dns_domain'],
-        }
+        })
 
         return template.render(tmpl_vars)
 
-    def __get_bootstrap_script(self, configDict, node):
+    def __get_common_tmpl_vars(self, configDict: dict) -> dict:
+        """Returns dict containing common template variables shared between
+        user-data script template and cloud-init template.
+        """
+        return {
+            'override_dns_domain':
+            configDict.get('override_dns_domain', False),
+            'dns_domain': configDict['dns_domain'],
+            'dns_nameservers':
+            _get_encoded_list(configDict['dns_nameservers']),
+            'dns_search': configDict['dns_search'],
+        }
+
+    def __get_bootstrap_script(self, configDict, node) -> str:
         """Generate node-specific custom data from template"""
 
         self._logger.info(
@@ -854,17 +867,15 @@ class AzureAdapter(ResourceAdapter):
         with open(configDict['user_data_script_template']) as fp:
             result = ''
 
-            settings_dict = {
+            settings_dict = self.__get_common_tmpl_vars(configDict)
+
+            settings_dict.update({
                 'installerHostName': self.installer_public_hostname,
                 'installerIp': installerIp,
                 'adminport': self._cm.getAdminPort(),
                 'cfmuser': self._cm.getCfmUser(),
                 'cfmpassword': self._cm.getCfmPassword(),
-                'override_dns_domain': str(configDict.get('override_dns_domain', None)),
-                'dns_search': configDict['dns_search'],
-                'dns_nameservers': _get_encoded_list(
-                    configDict['dns_nameservers']),
-            }
+            })
 
             for inp in fp.readlines():
                 if inp.startswith('### SETTINGS'):
