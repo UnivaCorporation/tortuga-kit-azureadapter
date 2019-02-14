@@ -811,7 +811,6 @@ class AzureAdapter(ResourceAdapter):
         return node_request_queue
 
     def __get_custom_data(self, azure_session, node):
-            # pylint: disable=unused-argument
         self._logger.debug(
             '__get_custom_data(): node=[{0}]'.format(node.name))
 
