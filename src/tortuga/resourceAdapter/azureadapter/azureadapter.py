@@ -422,12 +422,10 @@ class AzureAdapter(ResourceAdapter):
         #
         # DNS nameservers
         #
-        if not config['dns_nameservers']:
-            #
-            # Always include Tortuga installer DNS server as default
-            #
-            config['dns_nameservers'].append(
-                self.installer_public_ipaddress)
+        if config.get('dns_nameservers') is None:
+            config['dns_nameservers'] = [
+                self.installer_public_ipaddress,
+            ]
 
     def __add_active_nodes(self, addNodesRequest, dbSession,
                            hardwareprofile, softwareprofile):
