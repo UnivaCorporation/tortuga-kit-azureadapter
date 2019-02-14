@@ -298,14 +298,14 @@ class AzureAdapter(ResourceAdapter):
 
             generated_hostname = name.split('.', 1)[0]
 
-            name = '{0}.{1}'.format(generated_hostname, dns_zone)
+            name = '{}.{}'.format(generated_hostname, dns_zone)
         elif override_dns_domain:
             # Strip 'default' DNS domain suffix from generated node name
             hostname, domain = name.split('.', 1)
 
             if domain != override_dns_domain:
                 # Handle adapter-specific DNS domain (ie. multi-cloud)
-                name = '{0}.{1}'.format(hostname, override_dns_domain)
+                name = '{}.{}'.format(hostname, override_dns_domain)
 
         return Node(
             name=name,
