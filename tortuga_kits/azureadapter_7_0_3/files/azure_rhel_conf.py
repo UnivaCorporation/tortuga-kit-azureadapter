@@ -128,7 +128,7 @@ def update_network_configuration():
                     continue
                 elif buf.startswith('DOMAIN='):
                     domain_found = True
-                    fpOut.write('DOMIAN={0}\n'.format(dns_search))
+                    fpOut.write('DOMAIN={0}\n'.format(dns_search))
                     continue
 
                 fpOut.write(buf)
