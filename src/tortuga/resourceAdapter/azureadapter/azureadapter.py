@@ -288,9 +288,7 @@ class AzureAdapter(ResourceAdapter):
             randomize=True,
             dns_zone=self.private_dns_zone)
 
-        if hardwareprofile.location != 'remote-vpn' and \
-                not override_dns_domain and \
-                '.' in self.installer_public_hostname:
+        if not override_dns_domain and '.' in self.installer_public_hostname:
             # Extract host name from generated node name and append
             # DNS domain from installer host name
 
