@@ -877,6 +877,7 @@ cfmPassword = '%(cfmpassword)s'
 
 override_dns_domain = %(override_dns_domain)s
 dns_search = '%(dns_search)s'
+dns_domain = '%(dns_domain)s'
 dns_nameservers = %(dns_nameservers)s
 ''' % (settings_dict)
                 else:
