@@ -276,9 +276,9 @@ class AzureAdapter(ResourceAdapter):
 
         return nodes
 
-    def __create_node(self, session: Session, hardwareprofile,
-                      softwareprofile,
-                      override_dns_domain=None) -> Node:
+    def __create_node(self, session: Session, hardwareprofile: HardwareProfile,
+                      softwareprofile: SoftwareProfile,
+                      override_dns_domain: Optional[str] = None) -> Node:
         """
         Create node record
         """
