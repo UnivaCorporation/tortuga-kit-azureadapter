@@ -17,7 +17,6 @@ import datetime
 import itertools
 import os.path
 import random
-
 from typing import Any, Dict, Generator, List, NoReturn, Optional, Tuple, Union
 
 from jinja2 import Environment, FileSystemLoader
@@ -39,20 +38,16 @@ from tortuga.db.nodesDbHandler import NodesDbHandler
 from tortuga.exceptions.configurationError import ConfigurationError
 from tortuga.exceptions.nodeNotFound import NodeNotFound
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
-from tortuga.exceptions.tortugaException import TortugaException
 from tortuga.node import state
 from tortuga.resourceAdapter.resourceAdapter import \
     DEFAULT_CONFIGURATION_PROFILE_NAME, ResourceAdapter
 
-from .helper import AZURE_SETTINGS_DICT, parse_tags, _get_encoded_list
+from .exceptions import AzureOperationTimeout
+from .helper import AZURE_SETTINGS_DICT, _get_encoded_list, parse_tags
 from .session import AzureSession
 
 
 AZURE_ASYNC_OP_TIMEOUT = 900
-
-
-class AzureOperationTimeout(TortugaException):
-    """Azure operation timed out"""
 
 
 class AzureAdapter(ResourceAdapter):
