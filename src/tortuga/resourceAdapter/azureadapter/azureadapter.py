@@ -41,8 +41,8 @@ from tortuga.exceptions.nodeNotFound import NodeNotFound
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
 from tortuga.exceptions.tortugaException import TortugaException
 from tortuga.node import state
-from tortuga.resourceAdapter.resourceAdapter import (DEFAULT_CONFIGURATION_PROFILE_NAME,
-                                                     ResourceAdapter)
+from tortuga.resourceAdapter.resourceAdapter import \
+    DEFAULT_CONFIGURATION_PROFILE_NAME, ResourceAdapter
 
 from .helper import AZURE_SETTINGS_DICT, parse_tags, _get_encoded_list
 from .session import AzureSession
@@ -626,7 +626,7 @@ class AzureAdapter(ResourceAdapter):
         # can raise CloudError
         async_vm_creation.wait()
 
-    def __init_node_request_queue(self, nodes):
+    def __init_node_request_queue(self, nodes): \
             # pylint: disable=no-self-use
         """Construct a lookup table of instances, nodes, and VPN IDs,
         keyed on the instance
