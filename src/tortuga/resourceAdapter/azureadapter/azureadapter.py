@@ -222,6 +222,11 @@ class AzureAdapter(ResourceAdapter):
         )
     }
 
+    def __init__(self, addHostSession: str) -> None:
+        super().__init__(addHostSession=addHostSession)
+
+        self._nodesDbHandler = NodesDbHandler()
+
     def start(self, addNodesRequest, dbSession, dbHardwareProfile,
               dbSoftwareProfile=None):
         """
@@ -1684,7 +1689,7 @@ dns_nameservers = %(dns_nameservers)s
         vcpus = 0
 
         try:
-            node = NodesDbHandler().getNode(self.session, name)
+            node = self._nodesDbHandler.getNode(self.session, name)
 
             session = AzureSession(
                 config=self.get_node_resource_adapter_config(node)
