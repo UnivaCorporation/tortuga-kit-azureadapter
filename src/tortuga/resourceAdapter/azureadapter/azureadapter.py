@@ -53,8 +53,6 @@ AZURE_ASYNC_OP_TIMEOUT = 900
 class AzureAdapter(ResourceAdapter):
     __adaptername__ = 'azure'
 
-    DEFAULT_CREATE_TIMEOUT = 900
-
     settings = AZURE_SETTINGS_DICT
 
     def __init__(self, addHostSession: Optional[str] = None) -> None:
