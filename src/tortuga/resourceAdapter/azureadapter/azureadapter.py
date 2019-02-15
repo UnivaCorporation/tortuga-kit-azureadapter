@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright 2008-2018 Univa Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +17,6 @@ import datetime
 import itertools
 import os.path
 import random
-import shlex
 from typing import Any, Dict, Generator, List, NoReturn, Optional, Tuple, Union
 
 from jinja2 import Environment, FileSystemLoader
@@ -29,10 +26,6 @@ import gevent
 import gevent.lock
 import gevent.queue
 from azure.common import AzureMissingResourceHttpError
-from azure.common.credentials import ServicePrincipalCredentials
-from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.network import NetworkManagementClient
-from azure.mgmt.storage import StorageManagementClient
 from azure.storage.blob import BlockBlobService
 from msrestazure import azure_exceptions
 from tortuga.db.models.hardwareProfile import HardwareProfile
@@ -44,183 +37,23 @@ from tortuga.db.models.softwareProfile import SoftwareProfile
 from tortuga.db.nodesDbHandler import NodesDbHandler
 from tortuga.exceptions.configurationError import ConfigurationError
 from tortuga.exceptions.nodeNotFound import NodeNotFound
-from tortuga.exceptions.operationFailed import OperationFailed
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
-from tortuga.exceptions.tortugaException import TortugaException
 from tortuga.node import state
-from tortuga.resourceAdapter.resourceAdapter import (DEFAULT_CONFIGURATION_PROFILE_NAME,
-                                                     ResourceAdapter)
-from tortuga.resourceAdapterConfiguration import settings
+from tortuga.resourceAdapter.resourceAdapter import \
+    DEFAULT_CONFIGURATION_PROFILE_NAME, ResourceAdapter
+
+from .exceptions import AzureOperationTimeout
+from .helper import AZURE_SETTINGS_DICT, _get_encoded_list, parse_tags
+from .session import AzureSession
 
 
 AZURE_ASYNC_OP_TIMEOUT = 900
 
 
-class AzureOperationTimeout(TortugaException):
-    """Azure operation timed out"""
-
-
 class AzureAdapter(ResourceAdapter):
     __adaptername__ = 'azure'
 
-    DEFAULT_CREATE_TIMEOUT = 900
-
-    settings = {
-        'subscription_id': settings.StringSetting(
-            required=True,
-            description='Azure subscription ID; obtainable from azure CLI or '
-                        'Management Portal'
-        ),
-        'client_id': settings.StringSetting(
-            required=True,
-            description='Azure client ID; obtainable from azure CLI or '
-                        'Management Portal'
-        ),
-        'tenant_id': settings.StringSetting(
-            required=True,
-            description='Azure tenant ID; obtainable from azure CLI or '
-                        'Management Portal'
-        ),
-        'secret': settings.StringSetting(
-            required=True,
-            description='Azure client secret; obtainable from azure CLI or '
-                        'Management Portal',
-            secret=True
-        ),
-        'security_group': settings.StringSetting(
-            required=True,
-            description='Azure security group to associate with created '
-                        'virtual machines'
-
-        ),
-        'resource_group': settings.StringSetting(
-            required=True,
-            description='Azure resource group where Tortuga will create '
-                        'virtual machines'
-        ),
-        'storage_account': settings.StringSetting(
-            required=True,
-            description='Azure storage account where virtual disks for '
-                        'Tortuga-managed nodes will be created'
-        ),
-        'location': settings.StringSetting(
-            required=True,
-            description='Azure region in which to create virtual machines',
-            default='East US'
-        ),
-        'size': settings.StringSetting(
-            required=True,
-            description='"Size" of virtual machines',
-            default='Basic_A2'
-        ),
-        'default_login': settings.StringSetting(
-            required=True,
-            description='Default user login on compute nodes. A login is '
-                        'created by default on Tortuga-managed compute nodes '
-                        'for the specified user.',
-            default='azureuser'
-        ),
-        'virtual_network_name': settings.StringSetting(
-            required=True,
-            description='Name of virtual network to associate with virtual '
-                        'machines',
-            requires=['subnet_name']
-        ),
-        'subnet_name': settings.StringSetting(
-            required=True,
-            description='Name of subnet to be used within configured virtual '
-                        'network',
-            list=True
-        ),
-        'image_urn': settings.StringSetting(
-            description='URN of desired operating system VM image',
-            mutually_exclusive=['image'],
-            overrides=['image']
-        ),
-        'image': settings.StringSetting(
-            description='Name of VM image',
-            mutually_exclusive=['image_urn'],
-            overrides=['image_urn']
-        ),
-        'cloud_init_script_template': settings.FileSetting(
-            required=True,
-            description='Use this setting to specify the filename/path of'
-                        'the cloud-init script template. If the path is not'
-                        'fully-qualified (does not start with a leading'
-                        'forward slash), it is assumed the script path is '
-                        '$TORTUGA_ROOT/config',
-            base_path='/opt/tortuga/config/',
-            mutually_exclusive=['user_data_script_template'],
-            overrides=['user_data_script_template']
-        ),
-        'user_data_script_template': settings.FileSetting(
-            required=True,
-            description='File name of bootstrap script template to be used '
-                        'on compute nodes. If the path is not '
-                        'fully-qualified (ie. does not start with a leading '
-                        'forward slash), it is assumed the script path is '
-                        '$TORTUGA_ROOT/config',
-            base_path='/opt/tortuga/config/',
-            mutually_exclusive=['cloud_init_script_template'],
-            overrides=['cloud_init_script_template']
-        ),
-        'allocate_public_ip': settings.BooleanSetting(
-            description='When disabled (value "false"), VMs created by '
-                        'Tortuga will not have a public IP address.',
-            default='True'
-        ),
-        'storage_account_type': settings.StringSetting(
-            description='Use specified storage account type when using an VM '
-                        'image.',
-            default='Standard_LRS',
-            values=['Standard_LRS', 'Premium_LRS']
-        ),
-        'tags': settings.StringSetting(
-            description='Space-separated "key=value" pairs',
-            list=True
-        ),
-        'override_dns_domain': settings.BooleanSetting(),
-        'dns_domain': settings.StringSetting(
-            requires=['override_dns_domain']
-        ),
-        'dns_search': settings.StringSetting(
-            description='Set search list for compute node host name lookup. '
-                        'Default is the private DNS domain suffix if '
-                        '"override_dns_domain" is enabled, otherwise '
-                        'DNS domain suffix of Tortuga installer.'
-        ),
-        'dns_nameservers': settings.StringSetting(
-            description='Space-separated list of IP addresses to be set in '
-                        '/etc/resolv.conf. The default is the Tortuga DNS '
-                        'server IP.',
-            list=True,
-            list_separator=' ',
-            default=''
-        ),
-        'ssh_key_value': settings.StringSetting(
-            description='Specifies the SSH public key or public key file '
-                        'path. If the value of this setting starts with a '
-                        'forward slash (/), it is assumed to be a file path. '
-                        'The SSH public key will be read from this file.'
-        ),
-        'vcpus': settings.IntegerSetting(
-            description='Default behaviour is to use the virtual CPUs count '
-                        'obtained from Azure. If vcpus is defined, it '
-                        'overrides the default value.'
-        ),
-        'use_managed_disks': settings.BooleanSetting(
-            default='False',
-            advanced=True
-        ),
-        'ssd': settings.BooleanSetting(
-            default='False',
-            advanced=True
-        ),
-        'launch_timeout': settings.IntegerSetting(
-            default='300',
-            advanced=True
-        )
-    }
+    settings = AZURE_SETTINGS_DICT
 
     def __init__(self, addHostSession: Optional[str] = None) -> None:
         super().__init__(addHostSession=addHostSession)
@@ -237,10 +70,11 @@ class AzureAdapter(ResourceAdapter):
         """
 
         self._logger.debug(
-            'start(): addNodesRequest=[{0}], dbSession=[{1}],'
-            ' dbHardwareProfile=[{2}], dbSoftwareProfile=[{3}]'.format(
-                addNodesRequest, dbSession, dbHardwareProfile,
-                dbSoftwareProfile))
+            'start(): addNodesRequest=[%s], dbSession=[%s],'
+            ' dbHardwareProfile=[%s], dbSoftwareProfile=[%s]',
+            addNodesRequest, dbSession, dbHardwareProfile,
+            dbSoftwareProfile
+        )
 
         start_time = datetime.datetime.utcnow()
 
@@ -253,9 +87,9 @@ class AzureAdapter(ResourceAdapter):
 
         if len(nodes) < addNodesRequest['count']:
             self._logger.warning(
-                '{0} node(s) requested, only {1} launched'
-                ' successfully'.format(
-                    addNodesRequest['count'], len(nodes)))
+                '%s node(s) requested, only %s launched successfully',
+                addNodesRequest['count'], len(nodes)
+            )
 
         # This is a necessary evil for the time being, until there's
         # a proper context manager implemented.
@@ -266,16 +100,16 @@ class AzureAdapter(ResourceAdapter):
         time_delta = end_time - start_time
 
         self._logger.debug(
-            'start() session [{0}] completed in'
-            ' {1:.2f} seconds'.format(
-                self.addHostSession,
-                time_delta.seconds + time_delta.microseconds / 1000000.0))
+            'start() session [%s] completed in %.2f seconds',
+            self.addHostSession,
+            time_delta.seconds + time_delta.microseconds / 1000000.0
+        )
 
         return nodes
 
-    def __create_node(self, session: Session, hardwareprofile,
-                      softwareprofile,
-                      override_dns_domain=None) -> Node:
+    def __create_node(self, session: Session, hardwareprofile: HardwareProfile,
+                      softwareprofile: SoftwareProfile,
+                      override_dns_domain: Optional[str] = None) -> Node:
         """
         Create node record
         """
@@ -285,9 +119,7 @@ class AzureAdapter(ResourceAdapter):
             randomize=True,
             dns_zone=self.private_dns_zone)
 
-        if hardwareprofile.location != 'remote-vpn' and \
-                not override_dns_domain and \
-                '.' in self.installer_public_hostname:
+        if not override_dns_domain and '.' in self.installer_public_hostname:
             # Extract host name from generated node name and append
             # DNS domain from installer host name
 
@@ -295,14 +127,14 @@ class AzureAdapter(ResourceAdapter):
 
             generated_hostname = name.split('.', 1)[0]
 
-            name = '{0}.{1}'.format(generated_hostname, dns_zone)
+            name = '{}.{}'.format(generated_hostname, dns_zone)
         elif override_dns_domain:
             # Strip 'default' DNS domain suffix from generated node name
             hostname, domain = name.split('.', 1)
 
             if domain != override_dns_domain:
                 # Handle adapter-specific DNS domain (ie. multi-cloud)
-                name = '{0}.{1}'.format(hostname, override_dns_domain)
+                name = '{}.{}'.format(hostname, override_dns_domain)
 
         return Node(
             name=name,
@@ -347,8 +179,8 @@ class AzureAdapter(ResourceAdapter):
         #
         # Get the SSH key
         #
-        config['ssh_key_value'] = self.__get_ssh_public_key(
-            config.get('ssh_key_value', None))
+        config['ssh_key_value'] = \
+            self.__get_ssh_public_key(config.get('ssh_key_value'))
 
         #
         # Validate the image/image_urn
@@ -377,20 +209,22 @@ class AzureAdapter(ResourceAdapter):
             #
             config['use_managed_disks'] = True
 
-        if not config.get('use_managed_disks', None):
+        if not config.get('use_managed_disks'):
             if 'storage_account' not in config:
                 raise ConfigurationError(
                     'Azure storage account must be specified when using'
                     ' unmanaged disks')
 
-        if 'ssd' in config and not config.get('use_managed_disks', None):
-            self._logger.warning('Ignoring "ssd" setting; must be set in '
-                                     'storage account settings')
+        if 'ssd' in config and not config.get('use_managed_disks'):
+            self._logger.warning(
+                'Ignoring "ssd" setting; must be set in storage account'
+                ' settings'
+            )
 
         #
         # Parse tags
         #
-        if config.get('tags', None):
+        if config.get('tags'):
             config['tags'] = parse_tags(config['tags'])
 
         #
@@ -407,7 +241,7 @@ class AzureAdapter(ResourceAdapter):
             # If not specified, use 'dns_domain' as the default
             # DNS search when 'override_dns_domain' is enabled
             #
-            if config.get('override_dns_domain', None):
+            if config.get('override_dns_domain'):
                 config['dns_search'] = config['dns_domain']
             #
             # Otherwise default to DNS domain of installer
@@ -419,12 +253,10 @@ class AzureAdapter(ResourceAdapter):
         #
         # DNS nameservers
         #
-        if not config['dns_nameservers']:
-            #
-            # Always include Tortuga installer DNS server as default
-            #
-            config['dns_nameservers'].append(
-                self.installer_public_ipaddress)
+        if config.get('dns_nameservers') is None:
+            config['dns_nameservers'] = [
+                self.installer_public_ipaddress,
+            ]
 
     def __add_active_nodes(self, addNodesRequest, dbSession,
                            hardwareprofile, softwareprofile):
@@ -459,12 +291,14 @@ class AzureAdapter(ResourceAdapter):
 
         if 'cloud_init_script_template' in azure_session.config:
             self._logger.info(
-                'Using cloud-init template [{0}]'.format(
-                    azure_session.config['cloud_init_script_template']))
+                'Using cloud-init template [%s]',
+                azure_session.config['cloud_init_script_template']
+            )
         elif 'user_data_script_template' in azure_session.config:
             self._logger.info(
-                'Using custom data script template [{0}]'.format(
-                    azure_session.config['user_data_script_template']))
+                'Using custom data script template [%s]',
+                azure_session.config['user_data_script_template']
+            )
 
         if azure_session.config['use_managed_disks'] and \
                 'storage_account' in azure_session.config:
@@ -613,8 +447,7 @@ class AzureAdapter(ResourceAdapter):
                 node = node_request['node']
                 vm_name = get_vm_name(node.name)
 
-                self._logger.debug(
-                    'Waiting for VM [{}]...'.format(vm_name))
+                self._logger.debug('Waiting for VM [%s]...', vm_name)
 
                 start_time = datetime.datetime.utcnow()
 
@@ -624,11 +457,10 @@ class AzureAdapter(ResourceAdapter):
                 time_delta = datetime.datetime.utcnow() - start_time
 
                 self._logger.debug(
-                    'VM [{0}] launched successfully after {1}'
-                    ' seconds'.format(
-                        vm_name,
-                        time_delta.seconds + time_delta.microseconds /
-                        1000000.0))
+                    'VM [%s] launched successfully after %s seconds',
+                    vm_name,
+                    time_delta.seconds + time_delta.microseconds / 1000000.0
+                )
 
                 # Update node state
                 node.state = state.NODE_STATE_PROVISIONED
@@ -690,7 +522,7 @@ class AzureAdapter(ResourceAdapter):
 
         vm_name = get_vm_name(node.name)
 
-        self._logger.info('Launching VM [{}]'.format(vm_name))
+        self._logger.info('Launching VM [%s]', vm_name)
 
         custom_data = self.__get_custom_data(azure_session, node)
 
@@ -708,17 +540,12 @@ class AzureAdapter(ResourceAdapter):
 
             if isinstance(exc, azure_exceptions.CloudError):
                 self._logger.error(
-                    'Error launching VM [{0}]: {1}'.format(
-                        vm_name, exc.message
-                    )
+                    'Error launching VM [%s]: %s',
+                    vm_name, exc.message
                 )
 
             if isinstance(exc, TimeoutError):
-                self._logger.error(
-                    'Timed out launching VM [{}]'.format(
-                        vm_name
-                    )
-                )
+                self._logger.error('Timed out launching VM [%s]', vm_name)
 
             # Clean up
             self.__delete_nic(azure_session, vm_name)
@@ -732,7 +559,8 @@ class AzureAdapter(ResourceAdapter):
         except azure_exceptions.CloudError as exc2:
             self._logger.debug(
                 'Error attempting to remove nic for failed'
-                ' VM: {0}'.format(exc2.message))
+                ' VM: %s', exc2.message
+            )
 
     def __wait_for_vm_completion(self, azure_session, node_request,
                                  async_vm_creation):
@@ -768,8 +596,8 @@ class AzureAdapter(ResourceAdapter):
             vm_name = get_vm_name(node_request['node'].name)
 
             self._logger.debug(
-                'Waiting {0:.2f} seconds for VM [{1}]'.format(
-                    sleeptime, vm_name))
+                'Waiting %.2f seconds for VM [%s]', sleeptime, vm_name
+            )
 
             gevent.sleep(sleeptime)
 
@@ -791,7 +619,7 @@ class AzureAdapter(ResourceAdapter):
         # can raise CloudError
         async_vm_creation.wait()
 
-    def __init_node_request_queue(self, nodes):
+    def __init_node_request_queue(self, nodes): \
             # pylint: disable=no-self-use
         """Construct a lookup table of instances, nodes, and VPN IDs,
         keyed on the instance
@@ -810,9 +638,9 @@ class AzureAdapter(ResourceAdapter):
         return node_request_queue
 
     def __get_custom_data(self, azure_session, node):
-            # pylint: disable=unused-argument
         self._logger.debug(
-            '__get_custom_data(): node=[{0}]'.format(node.name))
+            '__get_custom_data(): node=[%s]', node.name
+        )
 
         if 'cloud_init_script_template' in azure_session.config:
             return self.__get_cloud_init_custom_data(azure_session.config)
@@ -832,21 +660,35 @@ class AzureAdapter(ResourceAdapter):
 
         template = env.get_template(srcfile)
 
-        tmpl_vars = {
+        tmpl_vars = self.__get_common_tmpl_vars(configDict)
+
+        tmpl_vars.update({
             'installer': self.installer_public_hostname,
             'installer_ip_address': self.installer_public_ipaddress,
-            'override_dns_domain': configDict.get('override_dns_domain', None),
-            'dns_domain': configDict['dns_domain'],
-        }
+        })
 
         return template.render(tmpl_vars)
 
-    def __get_bootstrap_script(self, configDict, node):
+    def __get_common_tmpl_vars(self, configDict: dict) -> dict:
+        """Returns dict containing common template variables shared between
+        user-data script template and cloud-init template.
+        """
+        return {
+            'override_dns_domain':
+            configDict.get('override_dns_domain', False),
+            'dns_domain': configDict['dns_domain'],
+            'dns_nameservers':
+            _get_encoded_list(configDict['dns_nameservers']),
+            'dns_search': configDict['dns_search'],
+        }
+
+    def __get_bootstrap_script(self, configDict, node) -> str:
         """Generate node-specific custom data from template"""
 
         self._logger.info(
-            'Using cloud-init script template [%s]' % (
-                configDict['user_data_script_template']))
+            'Using cloud-init script template [%s]',
+            configDict['user_data_script_template']
+            )
 
         installerIp = node.hardwareprofile.nics[0].ip \
             if node.hardwareprofile.nics else self.installer_public_ipaddress
@@ -854,17 +696,15 @@ class AzureAdapter(ResourceAdapter):
         with open(configDict['user_data_script_template']) as fp:
             result = ''
 
-            settings_dict = {
+            settings_dict = self.__get_common_tmpl_vars(configDict)
+
+            settings_dict.update({
                 'installerHostName': self.installer_public_hostname,
                 'installerIp': installerIp,
                 'adminport': self._cm.getAdminPort(),
                 'cfmuser': self._cm.getCfmUser(),
                 'cfmpassword': self._cm.getCfmPassword(),
-                'override_dns_domain': str(configDict.get('override_dns_domain', None)),
-                'dns_search': configDict['dns_search'],
-                'dns_nameservers': _get_encoded_list(
-                    configDict['dns_nameservers']),
-            }
+            })
 
             for inp in fp.readlines():
                 if inp.startswith('### SETTINGS'):
@@ -877,6 +717,7 @@ cfmPassword = '%(cfmpassword)s'
 
 override_dns_domain = %(override_dns_domain)s
 dns_search = '%(dns_search)s'
+dns_domain = '%(dns_domain)s'
 dns_nameservers = %(dns_nameservers)s
 ''' % (settings_dict)
                 else:
@@ -891,8 +732,7 @@ dns_nameservers = %(dns_nameservers)s
 
         vm_name = get_vm_name(node.name)
 
-        self._logger.debug(
-            '__create_vm(): vm_name=[{0}]'.format(vm_name))
+        self._logger.debug('__create_vm(): vm_name=[%s]', vm_name)
 
         # Create network interface
         nic = self.create_nic(session, vm_name)
@@ -1035,15 +875,14 @@ dns_nameservers = %(dns_nameservers)s
                 return ssh_key_value
 
         if not os.path.exists(ssh_key_value):
-            errmsg = 'SSH key file [{0}] does not exist'.format(
+            errmsg = 'SSH key file [{}] does not exist'.format(
                 ssh_key_value)
 
-            self._logger.error('{0}'.format(errmsg))
+            self._logger.error(errmsg)
 
             raise ConfigurationError(errmsg)
 
-        self._logger.debug(
-            'Reading ssh public key [{0}]'.format(ssh_key_value))
+        self._logger.debug('Reading ssh public key [%s]', ssh_key_value)
 
         with open(ssh_key_value) as fp:
             ssh_public_key = fp.read()
@@ -1057,9 +896,7 @@ dns_nameservers = %(dns_nameservers)s
             msrestazure.azure_exceptions.CloudError
         """
 
-        self._logger.debug(
-            'Creating network interface for VM [{}]'.format(
-                vm_name))
+        self._logger.debug('Creating network interface for VM [%s]', vm_name)
 
         subnet = \
             session.network_client.subnets.get(
@@ -1117,8 +954,7 @@ dns_nameservers = %(dns_nameservers)s
             msrestazure.azure_exceptions.CloudError
         """
 
-        self._logger.debug(
-            '__azure_get_vm(): vm_name=[{0}]'.format(vm_name))
+        self._logger.debug('__azure_get_vm(): vm_name=[%s}]', vm_name)
 
         return session.compute_client.virtual_machines.get(
             session.config['resource_group'], vm_name)
@@ -1129,9 +965,7 @@ dns_nameservers = %(dns_nameservers)s
             ResourceNotFound
         """
 
-        self._logger.debug(
-            '__azure_delte_vhd(): blob_name=[{0}]'.format(
-                blob_name))
+        self._logger.debug('__azure_delte_vhd(): blob_name=[%s]', blob_name)
 
         container_name = 'vhds'
 
@@ -1179,7 +1013,8 @@ dns_nameservers = %(dns_nameservers)s
             except Exception as exc:
                 self._logger.warning(
                     'Error attempting to delete managed disk'
-                    ' {}: {}'.format(disk_name, exc))
+                    ' %s: %s', disk_name, exc
+                )
 
                 # Wait 10s before reattemping operation
                 gevent.sleep(10)
@@ -1189,13 +1024,12 @@ dns_nameservers = %(dns_nameservers)s
         if retries == 5:
             self._logger.error(
                 'Exceeded retry limit attempting to delete managed'
-                ' disk [{}]'.format(disk_name))
+                ' disk [%s]', disk_name
+            )
 
             return False
 
-        self._logger.info(
-            'Managed disk [{}] deleted successfully'.format(
-                disk_name))
+        self._logger.info('Managed disk [%s] deleted successfully', disk_name)
 
         return True
 
@@ -1218,9 +1052,7 @@ dns_nameservers = %(dns_nameservers)s
             # Re-raise all other exceptions
             raise
 
-        self._logger.debug(
-            'Deleting network interface [{0}]'.format(
-                interface_id))
+        self._logger.debug('Deleting network interface [%s]', interface_id)
 
         retries = 0
         while retries < 5:
@@ -1242,11 +1074,12 @@ dns_nameservers = %(dns_nameservers)s
                 if total_wait_time < 300:
                     # Break out of retry loop
                     break
-            except Exception as exc:
+            except Exception:
                 # TODO: ensure non-recoverable errors are handled
                 self._logger.warning(
                     'Failure attempting to delete network interface'
-                    ' {}'.format(interface_id))
+                    ' %s', interface_id
+                )
 
             retries += 1
 
@@ -1255,8 +1088,8 @@ dns_nameservers = %(dns_nameservers)s
 
         if retries == 5:
             self._logger.error(
-                'unable to delete network interface {}'.format(
-                    interface_id))
+                'unable to delete network interface [%s]', interface_id
+            )
 
             return False
 
@@ -1282,7 +1115,8 @@ dns_nameservers = %(dns_nameservers)s
 
         self._logger.debug(
             '__azure_delete_ip_configuration(): '
-            'ip_configuration_id=[{0}]'.format(ip_configuration_id))
+            'ip_configuration_id=[%s]', ip_configuration_id
+        )
 
         retries = 0
         while retries < 5:
@@ -1306,7 +1140,8 @@ dns_nameservers = %(dns_nameservers)s
             except Exception as exc:
                 self._logger.warning(
                     'Failure attempting to delete IP configuration'
-                    ' {}: {}'.format(ip_configuration_id, exc))
+                    ' %s: %s', ip_configuration_id, exc
+                )
 
             retries += 1
 
@@ -1315,8 +1150,8 @@ dns_nameservers = %(dns_nameservers)s
 
         # Success
         self._logger.info(
-            'IP configuration [{}] deleted successfully'.format(
-                ip_configuration_id))
+            'IP configuration [%s] deleted successfully', ip_configuration_id
+        )
 
         return True
 
@@ -1410,15 +1245,15 @@ dns_nameservers = %(dns_nameservers)s
                         vm.storage_profile.os_disk.vhd.uri)
 
                     self._logger.debug(
-                        'Deleting [{0}] os disk [{1}]'.format(
-                            vm_name, blob_name))
+                        'Deleting [%s] os disk [%s]', vm_name, blob_name
+                    )
 
                     try:
                         self.__azure_delete_vhd(session, blob_name)
                     except ResourceNotFound:
                         self._logger.info(
-                            'Azure blob [{0}] does not exist'.format(
-                                blob_name))
+                            'Azure blob [%s] does not exist', blob_name
+                        )
                 elif vm.storage_profile.os_disk.managed_disk:
                     disk_name = vm.storage_profile.os_disk.name
 
@@ -1426,14 +1261,12 @@ dns_nameservers = %(dns_nameservers)s
                         self.__azure_delete_managed_disk(session, disk_name)
                     except ResourceNotFound:
                         self._logger.info(
-                            'Managed disk [{0}] does not exist'.format(
-                                disk_name))
+                            'Managed disk [%s] does not exist', disk_name
+                        )
 
-                self._logger.info(
-                    'VM [{0}] deleted'.format(vm_name))
+                self._logger.info('VM [%s] deleted', vm_name)
             except Exception as exc:
-                self._logger.error(
-                    'Error deleting VM [{0}]: {1}'.format(vm_name, exc))
+                self._logger.error('Error deleting VM [%s]: %s', vm_name, exc)
             finally:
                 wait_queue.task_done()
 
@@ -1468,8 +1301,9 @@ dns_nameservers = %(dns_nameservers)s
                 sleeptime = (temp / 2 + random.randint(0, temp / 2)) / 1000.0
 
             self._logger.debug(
-                '{0}sleeping {1:.2f} seconds on async request'.format(
-                    logmsg_prefix, sleeptime))
+                '%ssleeping %.2f seconds on async request',
+                logmsg_prefix, sleeptime
+            )
 
             gevent.sleep(sleeptime)
 
@@ -1504,8 +1338,7 @@ dns_nameservers = %(dns_nameservers)s
             try:
                 azure_session, vm_name = q.get()
 
-                self._logger.info(
-                    'Rebooting VM [{}]'.format(vm_name))
+                self._logger.info('Rebooting VM [%s]', vm_name)
 
                 response = \
                     azure_session.compute_client.virtual_machines.restart(
@@ -1515,15 +1348,14 @@ dns_nameservers = %(dns_nameservers)s
                     gevent.sleep(5)
 
                 self._logger.debug(
-                    'VM [{}] restart async operation'
-                    ' complete'.format(vm_name))
+                    'VM [%s] restart async operation complete', vm_name
+                )
             except azure_exceptions.CloudError as exc:
                 if exc.status_code == 404:
                     # Quietly ignore "not found" error
                     continue
 
-                self._logger.error(
-                    'Error restarting VM [{}]'.format(vm_name))
+                self._logger.error('Error restarting VM [%s]', vm_name)
             finally:
                 q.task_done()
 
@@ -1553,8 +1385,7 @@ dns_nameservers = %(dns_nameservers)s
 
             try:
                 try:
-                    self._logger.info(
-                        'Starting VM [{}]'.format(vm_name))
+                    self._logger.info('Starting VM [%s]', vm_name)
 
                     response = \
                         session.compute_client.virtual_machines.start(
@@ -1564,11 +1395,10 @@ dns_nameservers = %(dns_nameservers)s
                         gevent.sleep(5)
 
                     self._logger.debug(
-                        'VM [{}] async start VM operation'
-                        ' complete'.format(vm_name))
-                except Exception as exc:
-                    self._logger.exception(
-                        'Error starting VM(s): {}'.format(exc))
+                        'VM [%s] async start VM operation complete', vm_name
+                    )
+                except Exception:
+                    self._logger.exception('Error starting VM(s)')
 
                     raise
             finally:
@@ -1596,8 +1426,7 @@ dns_nameservers = %(dns_nameservers)s
 
             try:
                 try:
-                    self._logger.info(
-                        'Powering VM off [{}]'.format(vm_name))
+                    self._logger.info('Powering VM off [%s]', vm_name)
 
                     response = \
                         session.compute_client.virtual_machines.power_off(
@@ -1607,11 +1436,10 @@ dns_nameservers = %(dns_nameservers)s
                         gevent.sleep(5)
 
                     self._logger.debug(
-                        'VM [{}] async power off operation'
-                        ' complete'.format(vm_name))
-                except Exception as exc:
-                    self._logger.exception(
-                        'Error powering off VM(s): {}'.format(exc))
+                        'VM [%s] async power off operation complete', vm_name
+                    )
+                except Exception:
+                    self._logger.exception('Error powering off VM(s)')
 
                     raise
             finally:
@@ -1636,7 +1464,8 @@ dns_nameservers = %(dns_nameservers)s
                 # Unable to determine resource adapter configuration
                 self._logger.error(
                     'Unable to determine resource adapter'
-                    ' configuration for node [{0}]'.format(node.name))
+                    ' configuration for node [%s]', node.name
+                )
 
                 continue
 
@@ -1649,8 +1478,8 @@ dns_nameservers = %(dns_nameservers)s
                     break
             else:
                 self._logger.warning(
-                    'Unable to determine VM name for'
-                    ' node [{}]'.format(node.name))
+                    'Unable to determine VM name for node [%s]', node.name
+                )
 
                 continue
 
@@ -1670,8 +1499,9 @@ dns_nameservers = %(dns_nameservers)s
 
         # Unable to determine VM size, use default
         self._logger.warning(
-            'Unrecognized Azure VM size [{0}]. Using default core'
-            ' count {1:d}'.format(vm_size, default))
+            'Unrecognized Azure VM size [%s]. Using default core count %d',
+            vm_size, default
+        )
 
         return default
 
@@ -1742,71 +1572,3 @@ def get_vm_name(name):
 
     """
     return name.split('.', 1)[0]
-
-
-class AzureSession(object):
-    """
-    Object holding session information
-
-    """
-    def __init__(self, config=None):
-        """
-        Raises:
-            ConfigurationError
-        """
-
-        self.config = config or {}
-
-        self.credentials = None
-
-        # Handle to Azure service management session
-        self.session = None
-
-        self.compute_client = None
-        self.storage_mgmt_client = None
-        self.network_client = None
-
-        # Initialize Azure service management session
-        self.__init_session()
-
-    def __init_session(self):
-        subscription_id = self.config['subscription_id']
-
-        self.credentials = self.__get_credentials()
-
-        self.compute_client = ComputeManagementClient(
-            self.credentials, subscription_id)
-
-        self.network_client = NetworkManagementClient(
-            self.credentials, subscription_id)
-
-        self.storage_mgmt_client = StorageManagementClient(
-            self.credentials, subscription_id)
-
-    def __get_credentials(self):
-        return ServicePrincipalCredentials(
-            client_id=self.config['client_id'],
-            secret=self.config['secret'],
-            tenant=self.config['tenant_id'])
-
-
-def parse_tags(user_defined_tags):
-    """Parse tags provided in resource adapter configuration"""
-
-    tags = {}
-
-    # Support tag names/values containing spaces and tags without a
-    # value.
-    for tagdef in shlex.split(user_defined_tags):
-        key, value = tagdef.rsplit('=', 1) \
-            if '=' in tagdef else (tagdef, '')
-
-        tags[key] = value
-
-    return tags
-
-
-def _get_encoded_list(items):
-    """Return Python list encoded in a string"""
-    return '[' + ', '.join(['\'%s\'' % (item) for item in items]) + ']' \
-        if items else '[]'

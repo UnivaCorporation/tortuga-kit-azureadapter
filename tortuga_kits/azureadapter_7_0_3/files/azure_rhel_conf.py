@@ -126,9 +126,9 @@ def update_network_configuration():
                     nameserver_found = True
                     fpOut.write('DNS1={0}\n'.format(installerIpAddress))
                     continue
-                elif buf.startswith('DOMAIN='):
+                elif buf.startswith('DOMAIN=') and override_dns_domain:
                     domain_found = True
-                    fpOut.write('DOMIAN={0}\n'.format(dns_search))
+                    fpOut.write('DOMAIN={0}\n'.format(dns_search))
                     continue
 
                 fpOut.write(buf)
@@ -136,7 +136,7 @@ def update_network_configuration():
             if not nameserver_found:
                 fpOut.write('DNS1={0}\n'.format(installerIpAddress))
 
-            if not domain_found:
+            if not domain_found and override_dns_domain:
                 fpOut.write('DOMAIN={0}\n'.format(dns_search))
 
     shutil.move(fn, fn + '.orig')
@@ -146,10 +146,9 @@ def update_network_configuration():
 def main():
     runCommand('setenforce permissive')
 
-    if override_dns_domain:
-        update_resolv_conf()
+    update_resolv_conf()
 
-        update_network_configuration()
+    update_network_configuration()
 
     vals = platform.dist()
 
