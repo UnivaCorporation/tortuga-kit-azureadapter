@@ -165,7 +165,7 @@ AZURE_SETTINGS_DICT = {
                     'overrides the default value.'
     ),
     'use_managed_disks': settings.BooleanSetting(
-        default='False',
+        default='True',
         advanced=True
     ),
     'ssd': settings.BooleanSetting(
