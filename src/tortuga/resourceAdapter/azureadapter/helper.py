@@ -129,8 +129,7 @@ AZURE_SETTINGS_DICT = {
         values=['Standard_LRS', 'Premium_LRS']
     ),
     'tags': settings.StringSetting(
-        description='Space-separated "key=value" pairs',
-        list=True
+        description='Space-separated "key=value" pairs'
     ),
     'override_dns_domain': settings.BooleanSetting(
         display_name='Override DNS domain',
