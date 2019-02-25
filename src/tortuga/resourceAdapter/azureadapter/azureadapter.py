@@ -1485,25 +1485,22 @@ dns_nameservers = %(dns_nameservers)s
 
             yield node, azure_session, vm_name
 
-    def get_core_count(self, session, location, vm_size, default: int = 1):
+    def get_core_count(self, session: AzureSession, location: str,
+                       vm_size: str, default_vcpus: int = 1) -> int:
+        """Query VM sizes from Azure
         """
-        Query VM sizes from Azure
-        """
-
-        vm_sizes = list(session.compute_client.virtual_machine_sizes.list(
-            location))
-
-        for result in vm_sizes:
-            if result.name == vm_size:
+        for result in \
+                session.compute_client.virtual_machine_sizes.list(location):
+            if result.name.lower() == vm_size.lower():
                 return result.number_of_cores
 
         # Unable to determine VM size, use default
         self._logger.warning(
             'Unrecognized Azure VM size [%s]. Using default core count %d',
-            vm_size, default
+            vm_size, default_vcpus
         )
 
-        return default
+        return default_vcpus
 
     def get_node_vcpus(self, name: str) -> int:
         """
