@@ -15,8 +15,8 @@
 #cloud-config
 
 runcmd:
-  - ( cd /tmp; curl -O http://apt.puppetlabs.com/puppetlabs-release-pc1-xenial.deb )
-  - dpkg -i /tmp/puppetlabs-release-pc1-xenial.deb
+  - ( cd /tmp; curl -O http://apt.puppetlabs.com/puppet5-release-bionic.deb )
+  - dpkg -i /tmp/puppet5-release-bionic.deb
   - apt-get update
   - apt-get install -y puppet-agent
   - /opt/puppetlabs/bin/puppet agent --waitforcert 120 --server {{ installer }} --logdest /tmp/puppet_bootstrap.log --onetime
