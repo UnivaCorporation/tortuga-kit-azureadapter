@@ -1,6 +1,0 @@
-urllib3
-azure-cli
-colorama
-gevent
-msrestazure
-Jinja2
