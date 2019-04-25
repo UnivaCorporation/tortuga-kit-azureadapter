@@ -513,12 +513,6 @@ The following Azure resource adapter configuration settings are
 
         compute-01.private
 
-* `dns_search`
-
-    Set searchl list for compute node host name lookup. Default is the
-    private DNS domain suffix if 'override_dns_domain' is enabled,
-    otherwise DNS domain suffix of Tortuga installer.
-
 * `dns_nameservers`
 
     Space-separated list of IP addresses to be set in `/etc/resolv.conf`
@@ -639,7 +633,7 @@ can be queried/set using the Tortuga CLI`set-private-dns-zone`.
 
 Refer to documentation on Tortuga DNS for further details.
 
-Add `dns_search` and `dns_nameservers` settings here as appropriate. For
+Add `dns_nameservers` settings here as appropriate. For
 example, if the corporate DNS server enables DNS (sub)domain delegation
 for Tortuga-managed nodes, it may be desirable to set `dns_nameservers`
 to *only* include the IP address(es) of the corporate DNS server(s).
