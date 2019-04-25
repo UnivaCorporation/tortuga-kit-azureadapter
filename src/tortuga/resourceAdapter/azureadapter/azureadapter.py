@@ -234,23 +234,6 @@ class AzureAdapter(ResourceAdapter):
             if 'dns_domain' in config else self.private_dns_zone
 
         #
-        # DNS search
-        #
-        if 'dns_search' not in config:
-            #
-            # If not specified, use 'dns_domain' as the default
-            # DNS search when 'override_dns_domain' is enabled
-            #
-            if config.get('override_dns_domain'):
-                config['dns_search'] = config['dns_domain']
-            #
-            # Otherwise default to DNS domain of installer
-            #
-            else:
-                result = self.installer_public_hostname.split('.', 1)
-                config['dns_search'] = result[1] if len(result) == 2 else None
-
-        #
         # DNS nameservers
         #
         if config.get('dns_nameservers') is None:
@@ -678,8 +661,7 @@ class AzureAdapter(ResourceAdapter):
             configDict.get('override_dns_domain', False),
             'dns_domain': configDict['dns_domain'],
             'dns_nameservers':
-            _get_encoded_list(configDict['dns_nameservers']),
-            'dns_search': configDict['dns_search'],
+            _get_encoded_list(configDict['dns_nameservers'])
         }
 
     def __get_bootstrap_script(self, configDict, node) -> str:
@@ -716,7 +698,7 @@ cfmUser = '%(cfmuser)s'
 cfmPassword = '%(cfmpassword)s'
 
 override_dns_domain = %(override_dns_domain)s
-dns_search = '%(dns_search)s'
+dns_search = '%(dns_domain)s'
 dns_domain = '%(dns_domain)s'
 dns_nameservers = %(dns_nameservers)s
 ''' % (settings_dict)

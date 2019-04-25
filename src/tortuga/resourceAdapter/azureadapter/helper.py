@@ -139,12 +139,6 @@ AZURE_SETTINGS_DICT = {
     'dns_domain': settings.StringSetting(
         requires=['override_dns_domain']
     ),
-    'dns_search': settings.StringSetting(
-        description='Set search list for compute node host name lookup. '
-                    'Default is the private DNS domain suffix if '
-                    '"override_dns_domain" is enabled, otherwise '
-                    'DNS domain suffix of Tortuga installer.'
-    ),
     'dns_nameservers': settings.StringSetting(
         description='Space-separated list of IP addresses to be set in '
                     '/etc/resolv.conf. The default is the Tortuga DNS '
