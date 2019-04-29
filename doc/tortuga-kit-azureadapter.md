@@ -209,6 +209,14 @@ adapter kit included with the Tortuga distribution.
 **Note:** it is not necessary to extract the contents of the
 `tar.bz2` file in order to install the kit.
 
+The Azure libraries used by the Azure resource adapter require GCC to
+be installed. If you do not have GCC installed on your system, you can
+install it by running the following command:
+
+```shell
+yum install -y gcc
+```
+
 Install the Azure resource adapter kit by running the following
 command as `root` on a Tortuga installer host:
 
