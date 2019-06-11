@@ -28,7 +28,8 @@ from urllib.parse import urlparse
 from tortuga.cli.tortugaCli import TortugaCli
 from tortuga.db.dbManager import DbManager
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
-from tortuga.resourceAdapter.resourceAdapter import DEFAULT_CONFIGURATION_PROFILE_NAME
+from tortuga.resourceAdapter.resourceAdapter import \
+    DEFAULT_CONFIGURATION_PROFILE_NAME
 from tortuga.resourceAdapterConfiguration.api import \
     ResourceAdapterConfigurationApi
 

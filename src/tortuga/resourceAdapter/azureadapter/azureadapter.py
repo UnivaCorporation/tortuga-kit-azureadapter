@@ -43,7 +43,7 @@ from tortuga.resourceAdapter.resourceAdapter import \
     DEFAULT_CONFIGURATION_PROFILE_NAME, ResourceAdapter
 
 from .exceptions import AzureOperationTimeout
-from .helper import AZURE_SETTINGS_DICT, _get_encoded_list, parse_tags
+from .helper import AZURE_SETTINGS_DICT, _get_encoded_list
 from .session import AzureSession
 
 
@@ -222,12 +222,6 @@ class AzureAdapter(ResourceAdapter):
             )
 
         #
-        # Parse tags
-        #
-        if config.get('tags'):
-            config['tags'] = parse_tags(config['tags'])
-
-        #
         # DNS domain
         #
         config['dns_domain'] = config['dns_domain'] \
@@ -252,15 +246,15 @@ class AzureAdapter(ResourceAdapter):
             NetworkNotFound
         """
 
-        cfgname = addNodesRequest.get('resource_adapter_configuration')
-        if cfgname is None or cfgname == DEFAULT_CONFIGURATION_PROFILE_NAME:
+        profile = addNodesRequest.get('resource_adapter_configuration')
+        if profile is None or profile == DEFAULT_CONFIGURATION_PROFILE_NAME:
             # use default resource adapter configuration, if set
-            cfgname = hardwareprofile.default_resource_adapter_config.name \
+            profile = hardwareprofile.default_resource_adapter_config.name \
                 if hardwareprofile.default_resource_adapter_config else None
 
-        configDict = self.getResourceAdapterConfig(cfgname)
+        config = self.get_config(profile)
 
-        azure_session = AzureSession(config=configDict)
+        azure_session = AzureSession(config=config)
 
         # This bit of ugliness sets the configuration item 'ssh_key_value'
         # to either the user-provided override value or the default
@@ -313,18 +307,8 @@ class AzureAdapter(ResourceAdapter):
 
         node_requests = self.__init_node_request_queue(nodes)
 
-        tags = {
-            'tortuga_softwareprofile': softwareprofile.name,
-            'tortuga_hardwareprofile': hardwareprofile.name,
-            'tortuga_installer_hostname': self.installer_public_hostname,
-            'tortuga_installer_ipaddress': self.installer_public_ipaddress,
-        }
-
-        addNodesRequest['tags'] = dict(
-            list(tags.items()) +
-            list(azure_session.config['tags'].items())
-            if 'tags'in azure_session.config and
-            azure_session.config['tags'] else [])
+        addNodesRequest['tags'] = self.get_tags(config, hardwareprofile,
+                                                softwareprofile)
 
         # Launch jobs in parallel
         launch_jobs = [

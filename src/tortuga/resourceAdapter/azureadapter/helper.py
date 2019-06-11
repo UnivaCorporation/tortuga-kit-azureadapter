@@ -15,10 +15,15 @@
 import shlex
 from typing import List
 
+from tortuga.resourceAdapter.resourceAdapter import ResourceAdapter
 from tortuga.resourceAdapterConfiguration import settings
 
 
 AZURE_SETTINGS_DICT = {
+    #
+    # Pull in defaults
+    #
+    **ResourceAdapter.settings,
     'subscription_id': settings.StringSetting(
         required=True,
         description='Azure subscription ID; obtainable from azure CLI or '
@@ -128,9 +133,6 @@ AZURE_SETTINGS_DICT = {
         default='Standard_LRS',
         values=['Standard_LRS', 'Premium_LRS']
     ),
-    'tags': settings.StringSetting(
-        description='Space-separated "key=value" pairs'
-    ),
     'override_dns_domain': settings.BooleanSetting(
         display_name='Override DNS domain',
         description='Enable overriding of instances\' DNS domain',
@@ -172,23 +174,13 @@ AZURE_SETTINGS_DICT = {
 }
 
 
-def parse_tags(user_defined_tags):
-    """Parse tags provided in resource adapter configuration"""
-
-    tags = {}
-
-    # Support tag names/values containing spaces and tags without a
-    # value.
-    for tagdef in shlex.split(user_defined_tags):
-        key, value = tagdef.rsplit('=', 1) \
-            if '=' in tagdef else (tagdef, '')
-
-        tags[key] = value
-
-    return tags
-
-
 def _get_encoded_list(items: List[str]) -> str:
-    """Return Python list encoded in a string"""
-    return '[' + ', '.join(['\'%s\'' % (item) for item in items]) + ']' \
-        if items else '[]'
+    """
+    Return Python list encoded in a string
+
+    """
+    list_contents = ''
+    if items:
+        list_contents = ', '.join(["'{}'".format(item) for item in items])
+
+    return '[{}]'.format(list_contents)
