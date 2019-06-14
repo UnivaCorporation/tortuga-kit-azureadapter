@@ -112,7 +112,7 @@ class AzureAdapter(ResourceAdapter):
 
         result.extend(nodes)
 
-        return nodes
+        return result
 
     def __create_node(self, session: Session, hardwareprofile: HardwareProfile,
                       softwareprofile: SoftwareProfile,
