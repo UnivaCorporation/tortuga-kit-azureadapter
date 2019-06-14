@@ -60,8 +60,10 @@ class AzureAdapter(ResourceAdapter):
 
         self._nodesDbHandler = NodesDbHandler()
 
-    def start(self, addNodesRequest, dbSession, dbHardwareProfile,
-              dbSoftwareProfile=None):
+    def start(self, addNodesRequest: dict, dbSession: Session,
+              dbHardwareProfile: HardwareProfile,
+              dbSoftwareProfile: Optional[SoftwareProfile] = None) \
+            -> List[Node]:
         """
         Create Azure virtual machine to map to a Tortuga node.
 
@@ -75,6 +77,9 @@ class AzureAdapter(ResourceAdapter):
             addNodesRequest, dbSession, dbHardwareProfile,
             dbSoftwareProfile
         )
+
+        result = super().start(addNodesRequest, dbSession, dbHardwareProfile,
+                               dbSoftwareProfile)
 
         start_time = datetime.datetime.utcnow()
 
@@ -104,6 +109,8 @@ class AzureAdapter(ResourceAdapter):
             self.addHostSession,
             time_delta.seconds + time_delta.microseconds / 1000000.0
         )
+
+        result.extend(nodes)
 
         return nodes
 
