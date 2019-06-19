@@ -23,7 +23,16 @@ AZURE_SETTINGS_DICT = {
     #
     # Pull in defaults
     #
-    **ResourceAdapter.settings,
+    #
+    # Override the tag settings
+    #
+    'tags': settings.TagListSetting(
+        key_validation_regex='[^<>%&\\?/]{0,512}',
+        value_validation_regex='.{0,256}',
+        display_name='Tags',
+        description='A comma-separated list of tags in the form of '
+                    'key=value'
+    ),
     'subscription_id': settings.StringSetting(
         required=True,
         description='Azure subscription ID; obtainable from azure CLI or '
