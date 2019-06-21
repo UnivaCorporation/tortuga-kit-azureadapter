@@ -68,7 +68,7 @@ def test_invalid_empty_config(load_config_dict_mock, private_dns_zone_mock):
 def test_basic(private_dns_zone_mock):
     private_dns_zone_mock.return_value = 'example.com'
 
-    config = AzureAdapter().getResourceAdapterConfig(sectionName='testing')
+    config = AzureAdapter().getResourceAdapterConfig(profile='testing')
 
     assert 'user_data_script_template' not in config
 
