@@ -273,6 +273,14 @@ class ResourceAdapterSetup(TortugaCli):
         try:
             result = json.loads(self._run_cmd(az_cmd))
         except Exception as ex:
+            print("=" * 40)
+            print("An error was encountered when running the az command line "
+                  "utility. If you continue to get errors, it is possible "
+                  "that the Azure CLI needs to be updated. To upgrade the "
+                  "Azure CLI, type in the following command: "
+                  "pip install --upgrade azure-cli")
+            print("=" * 40)
+
             if str(ex).startswith('ERROR'):
                 raise APIError(str(ex))
             else:
