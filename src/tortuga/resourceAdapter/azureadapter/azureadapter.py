@@ -21,6 +21,7 @@ from typing import Any, Dict, Generator, List, NoReturn, Optional, Tuple, Union
 
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm.session import Session
+from sqlalchemy.orm.exc import NoResultFound
 
 import gevent
 import gevent.lock
@@ -28,6 +29,7 @@ import gevent.queue
 from azure.common import AzureMissingResourceHttpError
 from azure.storage.blob import BlockBlobService
 from msrestazure import azure_exceptions
+from tortuga.addhost.utility import encrypt_insertnode_request
 from tortuga.db.models.hardwareProfile import HardwareProfile
 from tortuga.db.models.instanceMapping import InstanceMapping
 from tortuga.db.models.instanceMetadata import InstanceMetadata
@@ -38,6 +40,7 @@ from tortuga.db.nodesDbHandler import NodesDbHandler
 from tortuga.exceptions.configurationError import ConfigurationError
 from tortuga.exceptions.nodeNotFound import NodeNotFound
 from tortuga.exceptions.resourceNotFound import ResourceNotFound
+from tortuga.exceptions.invalidArgument import InvalidArgument
 from tortuga.node import state
 from tortuga.resourceAdapter.resourceAdapter import \
     DEFAULT_CONFIGURATION_PROFILE_NAME, ResourceAdapter
@@ -85,12 +88,14 @@ class AzureAdapter(ResourceAdapter):
             addNodesRequest['nodeDetails']:
             # Instances already exist, create node records
             if 'metadata' in addNodesRequest['nodeDetails'][0] and \
-                    'instance_name' in \
+                    'instance_id' in \
                     addNodesRequest['nodeDetails'][0]['metadata']:
+                config = self.__get_config(addNodesRequest, dbHardwareProfile)
+                azure_session = AzureSession(config=config)
                 # inserting nodes based on metadata
-                node = self.__insert_node(gce_session, dbSession,
+                node = self.__insert_node(azure_session, dbSession,
                            dbHardwareProfile, dbSoftwareProfile,
-                           addNodesRequest['nodeDetails'][0],
+                           addNodesRequest,
                            addNodesRequest.get('resource_adapter_configuration')
                 )
 
@@ -193,7 +198,7 @@ class AzureAdapter(ResourceAdapter):
                 hardwareprofile,
                 softwareprofile,
                 override_dns_domain=dns_domain,
-                name=node_details[i].name if i < len(node_details) else None
+                name=node_details[i]['name'] if i < len(node_details) else None
             )
 
             if metadata and 'vcpus' in metadata:
@@ -202,6 +207,129 @@ class AzureAdapter(ResourceAdapter):
             nodes.append(node)
 
         return nodes
+
+    def __get_scale_set_parameters(self, session, name):
+            # pylint: disable=no-self-use
+        """Create the VM parameters structure.
+        """
+
+        ssh_public_key = session.config['ssh_key_value']
+
+        storage_profile = {
+            'os_disk': {
+                'os_type': 'Linux',
+                'caching': 'ReadWrite',
+                'create_option': 'fromImage',
+            }
+        }
+
+        if session.config['use_managed_disks']:
+            # Managed disk
+
+            if session.config['ssd']:
+                storage_profile['os_disk']['managed_disk'] = {
+                    'storage_account_type': 'Premium_LRS',
+                }
+        else:
+            # Regular (unmanaged) disk
+
+            # Build unique URI for VHD
+            vhd_uri = 'https://{}.blob.core.windows.net/vhds/{}.vhd'.format(
+                session.config['storage_account'], name)
+
+            storage_profile['os_disk']['vhd'] = {
+                'uri': vhd_uri,
+            }
+
+        if 'image_reference' in session.config:
+            storage_profile['image_reference'] = \
+                session.config['image_reference']
+        else:
+            # Look up id of image
+            image_id = session.compute_client.images.get(
+                session.config['resource_group'], session.config['image']).id
+
+            storage_profile['image_reference'] = {
+                'id': image_id,
+            }
+
+            if 'storage_account_type' in session.config and \
+                    session.config['storage_account_type']:
+                storage_profile['os_disk']['managed_disk'] = {
+                    'storage_account_type':
+                    session.config['storage_account_type']
+                }
+
+        subnet = \
+            session.network_client.subnets.get(
+                session.config['resource_group'],
+                session.config['virtual_network_name'],
+                session.config['subnet_name'][0])
+        ip_config = {
+                       'name': name + 'IpConfig',
+                       'subnet' : {
+                           'id' : subnet.id
+                       }
+        }
+        if session.config['allocate_public_ip']:
+            ip_config['public_ip_address_configuration'] = {
+                'name' : 'pub1',
+                'idle_timeout_in_minutues': 15,
+            }
+        virtualMachineProfile = {
+            'os_profile': {
+                'admin_username': session.config['default_login'],
+                'linux_configuration': {
+                    'disable_password_authentication': True,
+                    'ssh': {
+                        'public_keys': [
+                            {
+                                'path': '/home/%s/.ssh/authorized_keys' % (
+                                    session.config['default_login']),
+                                'key_data': ssh_public_key,
+                            }
+                        ],
+                    },
+                },
+            },
+            'hardware_profile': {
+                'vm_size': session.config['size']
+            },
+            'storage_profile': storage_profile,
+            'network_profile': {
+                'network_interface_configurations': [
+                    {
+                        'name': name + 'Nic',
+                        'primary' : True,
+                        'ip_configurations': [
+                            ip_config
+                        ]
+                    }
+                ]
+            }
+        }
+
+        result = {
+            'sku' : {
+                'tier': 'Standard',
+                'capacity': 0,
+                'name': session.config['size'],
+            },
+            'location': session.config['location'],
+            'properties': {
+                'overprovision': True,
+                'upgradePolicy': {
+                    'mode': 'Manual'
+                },
+                'virtualMachineProfile': virtualMachineProfile,
+            }
+        }
+
+        # TODO: TAGS
+        #result['tags'] = session['tags']
+
+        return result
+
 
     def create_scale_set(self,
               name: str,
@@ -217,7 +345,27 @@ class AzureAdapter(ResourceAdapter):
 
         :raises InvalidArgument:
         """
-        pass
+        config = self.get_config(resourceAdapterProfile)
+                      
+        session = AzureSession(config=config)
+        
+        parameters = self.__get_scale_set_parameters(session,name)
+        parameters['sku']['capacity'] = desiredCount
+        parameters['properties']['virtualMachineProfile']['os_profile']['computerNamePrefix'] = name
+
+        insertnode_request = {
+                   'softwareProfile': softwareProfile,
+                   'hardwareProfile': hardwareProfile,
+        }
+        encrypted_insertnode_request = encrypt_insertnode_request(
+                    self._cm.get_encryption_key(),
+                    insertnode_request)
+        custom_data = self.__get_custom_data(session, None, encrypted_insertnode_request)
+        if custom_data is not None:
+            parameters['properties']['virtualMachineProfile']['os_profile']['custom_data'] = \
+                base64.b64encode(custom_data.encode()).decode()
+        session.compute_client.virtual_machine_scale_sets.create_or_update(
+            session.config['resource_group'], name, parameters)
 
     def update_scale_set(self,
               name: str,
@@ -233,7 +381,8 @@ class AzureAdapter(ResourceAdapter):
 
         :raises InvalidArgument:
         """
-        pass
+        self.create_scale_set(name,resourceAdapterProfile,hardwareProfile,
+            softwareProfile, minCount, maxCount, desiredCount)
 
     def delete_scale_set(self,
               name: str,
@@ -244,7 +393,12 @@ class AzureAdapter(ResourceAdapter):
 
         :raises InvalidArgument:
         """
-        pass
+        config = self.get_config(resourceAdapterProfile)
+
+        session = AzureSession(config=config)
+
+        session.compute_client.virtual_machine_scale_sets.delete(
+            session.config['resource_group'], name)
 
     def process_config(self, config: Dict[str, Any]):
         #
@@ -306,8 +460,17 @@ class AzureAdapter(ResourceAdapter):
                 self.installer_public_ipaddress,
             ]
 
-    def __build_nodes(self, addNodesRequest, dbSession,
-                           hardwareprofile, softwareprofile);
+    def __get_config(self, addNodesRequest, hardwareprofile):
+        profile = addNodesRequest.get('resource_adapter_configuration')
+        if profile is None or profile == DEFAULT_CONFIGURATION_PROFILE_NAME:
+            # use default resource adapter configuration, if set
+            profile = hardwareprofile.default_resource_adapter_config.name \
+                if hardwareprofile.default_resource_adapter_config else None
+        config = self.get_config(profile)
+        return config
+
+    def __build_nodes(self, azure_session, addNodesRequest, dbSession,
+                           hardwareprofile, softwareprofile):
 
         """
         Returns list of Node
@@ -317,16 +480,6 @@ class AzureAdapter(ResourceAdapter):
             OperationFailed
             NetworkNotFound
         """
-
-        profile = addNodesRequest.get('resource_adapter_configuration')
-        if profile is None or profile == DEFAULT_CONFIGURATION_PROFILE_NAME:
-            # use default resource adapter configuration, if set
-            profile = hardwareprofile.default_resource_adapter_config.name \
-                if hardwareprofile.default_resource_adapter_config else None
-
-        config = self.get_config(profile)
-
-        azure_session = AzureSession(config=config)
 
         # This bit of ugliness sets the configuration item 'ssh_key_value'
         # to either the user-provided override value or the default
@@ -378,18 +531,21 @@ class AzureAdapter(ResourceAdapter):
         dbSession.add_all(nodes)
         dbSession.commit()
 
+        addNodesRequest['tags'] = self.get_tags(azure_session.config, hardwareprofile,
+                                                softwareprofile)
+
         return nodes
 
 
     def __add_active_nodes(self, addNodesRequest, dbSession,
                            hardwareprofile, softwareprofile):
-        nodes = self.__build_nodes(addNodesRequest, dbSession,
+        config = self.__get_config(addNodesRequest, hardwareprofile)
+        azure_session = AzureSession(config=config)
+
+        nodes = self.__build_nodes(azure_session, addNodesRequest, dbSession,
                 hardwareprofile, softwareprofile)
 
         node_requests = self.__init_node_request_queue(nodes)
-
-        addNodesRequest['tags'] = self.get_tags(config, hardwareprofile,
-                                                softwareprofile)
 
         # Launch jobs in parallel
         launch_jobs = [
@@ -452,11 +608,11 @@ class AzureAdapter(ResourceAdapter):
         except NoResultFound:
             pass
 
-        return Noneo
+        return None
 
     def __insert_node(self, session: AzureSession, dbSession: Session,
                        dbHardwareProfile: HardwareProfile, dbSoftwareProfile: SoftwareProfile,
-                       addNodeRequest: dict, resourceAdapter: str
+                       addNodesRequest: dict, resourceAdapter: str
                        ) -> List[Node]:
         """
         Directly insert nodes with pre-existing Azure instances
@@ -469,16 +625,16 @@ class AzureAdapter(ResourceAdapter):
             'Inserting %d node', 1
         )
 
-        nodeDetail = addNodeRequest['nodeDetails']
-        instance_name: Optional[str] = \
-            nodeDetail['metadata']['instance_name'] \
+        nodeDetail = addNodesRequest['nodeDetails'][0]
+        instance_id: Optional[int] = \
+            nodeDetail['metadata']['instance_id'] \
             if 'metadata' in nodeDetail and \
-            'instance_name' in nodeDetail['metadata'] else None
-        if not instance_name:
+            'instance_id' in nodeDetail['metadata'] else None
+        if instance_id is None:
             # TODO: currently not handled
             self._logger.error(
-                'instance_name not set in metadata. Unable to insert Azure nodes'
-                ' without backing instance'
+                'instance_id not set in metadata. Unable to insert Azure nodes'
+                ' with invalid metadata: %s', nodeDetail
             )
 
             return None
@@ -487,7 +643,7 @@ class AzureAdapter(ResourceAdapter):
             nodeDetail['metadata']['private_ip'] \
             if 'metadata' in nodeDetail and \
             'private_ip' in nodeDetail['metadata'] else None
-        if not instance_name:
+        if not internal_ip:
             # TODO: currently not handled
             self._logger.error(
                 'private_ip not set in metadata. Unable to insert Azure nodes'
@@ -496,23 +652,32 @@ class AzureAdapter(ResourceAdapter):
 
             return None
 
-        instance = self.__azure_get_vm(session, instance_name)
+        scale_set_name: Optional[str] = \
+            nodeDetail['metadata']['scale_set_name'] \
+            if 'metadata' in nodeDetail and \
+            'scale_set_name' in nodeDetail['metadata'] else None
+        if scale_set_name == "":
+            scale_set_name = None
+        
+        instance = self.__azure_get_vm(session, nodeDetail['name'], scale_set_name, instance_id)
 
         if not instance:
             self._logger.warning(
                 'Error inserting node [%s]. Azure instance [%s] does not exist',
-                instance_name,
+                nodeDetail['name'],
             )
 
             return None
 
         node_created = False
 
-        node = self.__get_node_by_instance(dbSession, instance_name)
+        node = self.__get_node_by_instance(dbSession, nodeDetail['name'])
         if node is None:
             try:
-                node = self.__build_nodes(addNodesRequest, dbSession,
-                           hardwareprofile, softwareprofile)[0]
+                config = self.__get_config(addNodesRequest, dbHardwareProfile)
+                azure_session = AzureSession(config=config)
+                node = self.__build_nodes(azure_session, addNodesRequest, dbSession,
+                           dbHardwareProfile, dbSoftwareProfile)[0]
 
                 node_created = True
                 node.state = state.NODE_STATE_PROVISIONED
@@ -525,7 +690,7 @@ class AzureAdapter(ResourceAdapter):
         else:
             self._logger.debug(
                 'Found existing node record [%s] for instance id [%s]',
-                node.name, instance_name
+                node.name, nodeDetail['name']
             )
 
         # set node properties
@@ -540,7 +705,7 @@ class AzureAdapter(ResourceAdapter):
         )
 
         node.instance = InstanceMapping(
-            instance=instance_name,
+            instance=nodeDetail['name'],
             resource_adapter_configuration=self.load_resource_adapter_config(
                 dbSession,
                 resourceAdapter
@@ -797,16 +962,16 @@ class AzureAdapter(ResourceAdapter):
 
         return node_request_queue
 
-    def __get_custom_data(self, azure_session, node):
+    def __get_custom_data(self, azure_session, node, insertnode_request=None):
         self._logger.debug(
-            '__get_custom_data(): node=[%s]', node.name
+            '__get_custom_data()'
         )
 
         if 'cloud_init_script_template' in azure_session.config:
             return self.__get_cloud_init_custom_data(azure_session.config)
         elif 'user_data_script_template' in azure_session.config:
             return self.__get_bootstrap_script(
-                azure_session.config, node)
+                azure_session.config, node, insertnode_request)
 
         return None
 
@@ -841,7 +1006,8 @@ class AzureAdapter(ResourceAdapter):
             _get_encoded_list(configDict['dns_nameservers'])
         }
 
-    def __get_bootstrap_script(self, configDict, node) -> str:
+    def __get_bootstrap_script(self, configDict, node, 
+                insertnode_request: Optional[bytes] = None) -> str:
         """Generate node-specific custom data from template"""
 
         self._logger.info(
@@ -849,8 +1015,10 @@ class AzureAdapter(ResourceAdapter):
             configDict['user_data_script_template']
             )
 
-        installerIp = node.hardwareprofile.nics[0].ip \
-            if node.hardwareprofile.nics else self.installer_public_ipaddress
+        installerIp = self.installer_public_ipaddress
+        if node is not None:
+            installerIp = node.hardwareprofile.nics[0].ip \
+                if node.hardwareprofile.nics else installerIp
 
         with open(configDict['user_data_script_template']) as fp:
             result = ''
@@ -871,14 +1039,17 @@ class AzureAdapter(ResourceAdapter):
 installerHostName = '%(installerHostName)s'
 installerIpAddress = '%(installerIp)s'
 port = %(adminport)d
-cfmUser = '%(cfmuser)s'
-cfmPassword = '%(cfmpassword)s'
 
 override_dns_domain = %(override_dns_domain)s
 dns_search = '%(dns_domain)s'
 dns_domain = '%(dns_domain)s'
 dns_nameservers = %(dns_nameservers)s
 ''' % (settings_dict)
+                    if insertnode_request is not None:
+                        result += '''\
+# Insert_node
+insertnode_request = %s
+''' % (insertnode_request)
                 else:
                     result += inp
 
@@ -1107,7 +1278,8 @@ dns_nameservers = %(dns_nameservers)s
             async_nic_creation, tag='create_nic', max_sleep_time=10000,
             initial_sleep_time=10000)
 
-    def __azure_get_vm(self, session, vm_name):
+    def __azure_get_vm(self, session, vm_name, scale_set_name=None,
+          instance_id=None):
         """
         Raises:
             msrestazure.azure_exceptions.CloudError
@@ -1115,8 +1287,12 @@ dns_nameservers = %(dns_nameservers)s
 
         self._logger.debug('__azure_get_vm(): vm_name=[%s}]', vm_name)
 
-        return session.compute_client.virtual_machines.get(
-            session.config['resource_group'], vm_name)
+        if scale_set_name is None:
+            return session.compute_client.virtual_machines.get(
+                session.config['resource_group'], vm_name)
+        else:
+            return session.compute_client.virtual_machine_scale_set_vms.get(
+                session.config['resource_group'], scale_set_name, instance_id)
 
     def __azure_delete_vhd(self, session, blob_name):
         """
