@@ -81,6 +81,23 @@ class AzureAdapter(ResourceAdapter):
         result = super().start(addNodesRequest, dbSession, dbHardwareProfile,
                                dbSoftwareProfile)
 
+        if 'nodeDetails' in addNodesRequest and \
+            addNodesRequest['nodeDetails']:
+            # Instances already exist, create node records
+            if 'metadata' in addNodesRequest['nodeDetails'][0] and \
+                    'instance_name' in \
+                    addNodesRequest['nodeDetails'][0]['metadata']:
+                # inserting nodes based on metadata
+                node = self.__insert_node(gce_session, dbSession,
+                           dbHardwareProfile, dbSoftwareProfile,
+                           addNodesRequest['nodeDetails'][0],
+                           addNodesRequest.get('resource_adapter_configuration')
+                )
+
+                dbSession.commit()
+
+                return [node]
+
         start_time = datetime.datetime.utcnow()
 
         nodes = self.__add_active_nodes(
@@ -116,32 +133,34 @@ class AzureAdapter(ResourceAdapter):
 
     def __create_node(self, session: Session, hardwareprofile: HardwareProfile,
                       softwareprofile: SoftwareProfile,
+                      name: Optional[str] = None,
                       override_dns_domain: Optional[str] = None) -> Node:
         """
         Create node record
         """
-        name = self.addHostApi.generate_node_name(
-            session,
-            hardwareprofile.nameFormat,
-            randomize=True,
-            dns_zone=self.private_dns_zone)
+        if name is None:
+            name = self.addHostApi.generate_node_name(
+                session,
+                hardwareprofile.nameFormat,
+                randomize=True,
+                dns_zone=self.private_dns_zone)
 
-        if not override_dns_domain and '.' in self.installer_public_hostname:
-            # Extract host name from generated node name and append
-            # DNS domain from installer host name
+            if not override_dns_domain and '.' in self.installer_public_hostname:
+                # Extract host name from generated node name and append
+                # DNS domain from installer host name
 
-            dns_zone = self.installer_public_hostname.split('.', 1)[1]
+                dns_zone = self.installer_public_hostname.split('.', 1)[1]
 
-            generated_hostname = name.split('.', 1)[0]
+                generated_hostname = name.split('.', 1)[0]
 
-            name = '{}.{}'.format(generated_hostname, dns_zone)
-        elif override_dns_domain:
-            # Strip 'default' DNS domain suffix from generated node name
-            hostname, domain = name.split('.', 1)
+                name = '{}.{}'.format(generated_hostname, dns_zone)
+            elif override_dns_domain:
+                # Strip 'default' DNS domain suffix from generated node name
+                hostname, domain = name.split('.', 1)
 
-            if domain != override_dns_domain:
-                # Handle adapter-specific DNS domain (ie. multi-cloud)
-                name = '{}.{}'.format(hostname, override_dns_domain)
+                if domain != override_dns_domain:
+                    # Handle adapter-specific DNS domain (ie. multi-cloud)
+                    name = '{}.{}'.format(hostname, override_dns_domain)
 
         return Node(
             name=name,
@@ -151,7 +170,7 @@ class AzureAdapter(ResourceAdapter):
             addHostSession=self.addHostSession,
         )
 
-    def __create_nodes(self, count: int, session: Session,
+    def __create_nodes(self, addNodesRequest: dict, session: Session,
                        hardwareprofile: HardwareProfile,
                        softwareprofile: SoftwareProfile,
                        configDict: dict, *,
@@ -167,12 +186,14 @@ class AzureAdapter(ResourceAdapter):
 
         nodes: List[Node] = []
 
-        for _ in range(count):
+        node_details = addNodesRequest.get('nodeDetails',[])
+        for i in range(addNodesRequest["count"]):
             node = self.__create_node(
                 session,
                 hardwareprofile,
                 softwareprofile,
-                override_dns_domain=dns_domain
+                override_dns_domain=dns_domain,
+                name=node_details[i].name if i < len(node_details) else None
             )
 
             if metadata and 'vcpus' in metadata:
@@ -181,6 +202,49 @@ class AzureAdapter(ResourceAdapter):
             nodes.append(node)
 
         return nodes
+
+    def create_scale_set(self,
+              name: str,
+              resourceAdapterProfile: str,
+              hardwareProfile: str,
+              softwareProfile: str,
+              minCount: int,
+              maxCount: int,
+              desiredCount: int):
+
+        """
+        Create a scale set in Azure
+
+        :raises InvalidArgument:
+        """
+        pass
+
+    def update_scale_set(self,
+              name: str,
+              resourceAdapterProfile: str,
+              hardwareProfile: str,
+              softwareProfile: str,
+              minCount: int,
+              maxCount: int,
+              desiredCount: int):
+
+        """
+        Updates an existing scale set
+
+        :raises InvalidArgument:
+        """
+        pass
+
+    def delete_scale_set(self,
+              name: str,
+              resourceAdapterProfile: str):
+
+        """
+        Delete an existing scale set
+
+        :raises InvalidArgument:
+        """
+        pass
 
     def process_config(self, config: Dict[str, Any]):
         #
@@ -242,8 +306,9 @@ class AzureAdapter(ResourceAdapter):
                 self.installer_public_ipaddress,
             ]
 
-    def __add_active_nodes(self, addNodesRequest, dbSession,
-                           hardwareprofile, softwareprofile):
+    def __build_nodes(self, addNodesRequest, dbSession,
+                           hardwareprofile, softwareprofile);
+
         """
         Returns list of Node
 
@@ -296,9 +361,10 @@ class AzureAdapter(ResourceAdapter):
             azure_session.config['size'],
         )
 
+        # If a name is provided force it...
         # Precreate node records
         nodes = self.__create_nodes(
-            addNodesRequest['count'],
+            addNodesRequest,
             dbSession,
             hardwareprofile,
             softwareprofile,
@@ -311,6 +377,14 @@ class AzureAdapter(ResourceAdapter):
         # Commit Nodes to database
         dbSession.add_all(nodes)
         dbSession.commit()
+
+        return nodes
+
+
+    def __add_active_nodes(self, addNodesRequest, dbSession,
+                           hardwareprofile, softwareprofile):
+        nodes = self.__build_nodes(addNodesRequest, dbSession,
+                hardwareprofile, softwareprofile)
 
         node_requests = self.__init_node_request_queue(nodes)
 
@@ -368,6 +442,118 @@ class AzureAdapter(ResourceAdapter):
 
         return self.__process_completed_node_requests(
             dbSession, azure_session, node_requests)
+
+    def __get_node_by_instance(self, session: Session,
+                               instance_name: str) -> Optional[Node]:
+        try:
+            return session.query(InstanceMapping).filter(
+                InstanceMapping.instance==instance_name  # noqa
+            ).one().node
+        except NoResultFound:
+            pass
+
+        return Noneo
+
+    def __insert_node(self, session: AzureSession, dbSession: Session,
+                       dbHardwareProfile: HardwareProfile, dbSoftwareProfile: SoftwareProfile,
+                       addNodeRequest: dict, resourceAdapter: str
+                       ) -> List[Node]:
+        """
+        Directly insert nodes with pre-existing Azure instances
+
+        This is primarily used for supporting spot instances where an
+        Azure instance exists before the Tortuga associated node record.
+        """
+
+        self._logger.info(
+            'Inserting %d node', 1
+        )
+
+        nodeDetail = addNodeRequest['nodeDetails']
+        instance_name: Optional[str] = \
+            nodeDetail['metadata']['instance_name'] \
+            if 'metadata' in nodeDetail and \
+            'instance_name' in nodeDetail['metadata'] else None
+        if not instance_name:
+            # TODO: currently not handled
+            self._logger.error(
+                'instance_name not set in metadata. Unable to insert Azure nodes'
+                ' without backing instance'
+            )
+
+            return None
+
+        internal_ip: Optional[str] = \
+            nodeDetail['metadata']['private_ip'] \
+            if 'metadata' in nodeDetail and \
+            'private_ip' in nodeDetail['metadata'] else None
+        if not instance_name:
+            # TODO: currently not handled
+            self._logger.error(
+                'private_ip not set in metadata. Unable to insert Azure nodes'
+                ' without passed ip address'
+            )
+
+            return None
+
+        instance = self.__azure_get_vm(session, instance_name)
+
+        if not instance:
+            self._logger.warning(
+                'Error inserting node [%s]. Azure instance [%s] does not exist',
+                instance_name,
+            )
+
+            return None
+
+        node_created = False
+
+        node = self.__get_node_by_instance(dbSession, instance_name)
+        if node is None:
+            try:
+                node = self.__build_nodes(addNodesRequest, dbSession,
+                           hardwareprofile, softwareprofile)[0]
+
+                node_created = True
+                node.state = state.NODE_STATE_PROVISIONED
+            except InvalidArgument:
+                self._logger.exception(
+                    'Error creating new node record in insert workflow'
+                )
+                raise
+
+        else:
+            self._logger.debug(
+                'Found existing node record [%s] for instance id [%s]',
+                node.name, instance_name
+            )
+
+        # set node properties
+        node.nics.append(Nic(ip=internal_ip, boot=True))
+
+        # Call pre-add-host to set up DNS record
+        self._pre_add_host(
+            node.name,
+            node.hardwareprofile.name,
+            node.softwareprofile.name,
+            internal_ip,
+        )
+
+        node.instance = InstanceMapping(
+            instance=instance_name,
+            resource_adapter_configuration=self.load_resource_adapter_config(
+                dbSession,
+                resourceAdapter
+                )
+        )
+
+        if node_created:
+            # only fire the new node event if creating the record for the
+            # first time
+            self.fire_provisioned_event(node)
+
+        return node
+
 
     def __process_completed_node_requests(self, dbSession, azure_session,
                                           node_requests):
