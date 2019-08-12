@@ -596,6 +596,7 @@ class AzureAdapter(ResourceAdapter):
             node.instance = InstanceMapping(
                 instance_metadata=[
                     InstanceMetadata(key='vm_name', value=vm_name),
+                    InstanceMetadata(key='resource_group', value=azure_session.config['resource_group']),
                 ],
                 resource_adapter_configuration=adapter_cfg,
             )
@@ -715,6 +716,10 @@ class AzureAdapter(ResourceAdapter):
 
         node.instance = InstanceMapping(
             instance=nodeDetail['name'],
+            instance_metadata=[
+                InstanceMetadata(key='vm_name', value=vm_name),
+                InstanceMetadata(key='resource_group', value=session.config['resource_group']),
+            ],
             resource_adapter_configuration=self.load_resource_adapter_config(
                 dbSession,
                 resourceAdapter
