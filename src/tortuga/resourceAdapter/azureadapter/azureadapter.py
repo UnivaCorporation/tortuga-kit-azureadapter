@@ -338,7 +338,8 @@ class AzureAdapter(ResourceAdapter):
               softwareProfile: str,
               minCount: int,
               maxCount: int,
-              desiredCount: int):
+              desiredCount: int,
+              adapter_args: dict):
 
         """
         Create a scale set in Azure
@@ -352,6 +353,13 @@ class AzureAdapter(ResourceAdapter):
         parameters = self.__get_scale_set_parameters(session,name)
         parameters['sku']['capacity'] = desiredCount
         parameters['properties']['virtualMachineProfile']['os_profile']['computerNamePrefix'] = name
+
+        priority = adapter_args.get('priority')
+        if priority is not None:
+            parameters['properties']['virtualMachineProfile']['priority'] = priority
+        evictionPolicy = adapter_args.get('evictionPolicy')
+        if evictionPolicy is not None:
+            parameters['properties']['virtualMachineProfile']['eviction_policy'] = evictionPolicy
 
         insertnode_request = {
                    'softwareProfile': softwareProfile,
@@ -374,7 +382,8 @@ class AzureAdapter(ResourceAdapter):
               softwareProfile: str,
               minCount: int,
               maxCount: int,
-              desiredCount: int):
+              desiredCount: int,
+              adapter_args: dict):
 
         """
         Updates an existing scale set
