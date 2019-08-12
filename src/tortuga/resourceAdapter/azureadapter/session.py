@@ -15,6 +15,7 @@
 from typing import Optional
 
 from azure.common.credentials import ServicePrincipalCredentials
+from azure.mgmt.blob import ContainerClient
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.storage import StorageManagementClient
@@ -38,6 +39,7 @@ class AzureSession:
         self.compute_client: Optional[ComputeManagementClient] = None
         self.storage_mgmt_client: Optional[StorageManagementClient] = None
         self.network_client: Optional[NetworkManagementClient] = None
+        self.container_client: Optional[ContainerClient] = None
 
         # Initialize Azure service management session
         self.__init_session()
@@ -55,6 +57,15 @@ class AzureSession:
 
         self.storage_mgmt_client = StorageManagementClient(
             self.credentials, subscription_id)
+
+        storageaccount = self.config.get('storageaccount', None)
+        container = self.config.get('container', None)
+        if storageaccount and container:
+            account_url = "https://{}.blob.core.windows.net/".format(
+                storageaccount
+            )
+            self.container_client = ContainerClient(account_url, container,
+                                                    self.credentials)
 
     def __get_credentials(self):
         return ServicePrincipalCredentials(
