@@ -338,7 +338,8 @@ class AzureAdapter(ResourceAdapter):
               softwareProfile: str,
               minCount: int,
               maxCount: int,
-              desiredCount: int):
+              desiredCount: int,
+              adapter_args: dict):
 
         """
         Create a scale set in Azure
@@ -352,6 +353,13 @@ class AzureAdapter(ResourceAdapter):
         parameters = self.__get_scale_set_parameters(session,name)
         parameters['sku']['capacity'] = desiredCount
         parameters['properties']['virtualMachineProfile']['os_profile']['computerNamePrefix'] = name
+
+        priority = adapter_args.get('priority')
+        if priority is not None:
+            parameters['properties']['virtualMachineProfile']['priority'] = priority
+        evictionPolicy = adapter_args.get('evictionPolicy')
+        if evictionPolicy is not None:
+            parameters['properties']['virtualMachineProfile']['eviction_policy'] = evictionPolicy
 
         insertnode_request = {
                    'softwareProfile': softwareProfile,
@@ -374,7 +382,8 @@ class AzureAdapter(ResourceAdapter):
               softwareProfile: str,
               minCount: int,
               maxCount: int,
-              desiredCount: int):
+              desiredCount: int,
+              adapter_args: dict):
 
         """
         Updates an existing scale set
@@ -587,6 +596,7 @@ class AzureAdapter(ResourceAdapter):
             node.instance = InstanceMapping(
                 instance_metadata=[
                     InstanceMetadata(key='vm_name', value=vm_name),
+                    InstanceMetadata(key='resource_group', value=azure_session.config['resource_group']),
                 ],
                 resource_adapter_configuration=adapter_cfg,
             )
@@ -706,6 +716,10 @@ class AzureAdapter(ResourceAdapter):
 
         node.instance = InstanceMapping(
             instance=nodeDetail['name'],
+            instance_metadata=[
+                InstanceMetadata(key='vm_name', value=vm_name),
+                InstanceMetadata(key='resource_group', value=session.config['resource_group']),
+            ],
             resource_adapter_configuration=self.load_resource_adapter_config(
                 dbSession,
                 resourceAdapter
