@@ -179,7 +179,75 @@ AZURE_SETTINGS_DICT = {
     'launch_timeout': settings.IntegerSetting(
         default='300',
         advanced=True
+    ),
+
+    #
+    # Settings for Navops Launch 2.0
+    #
+    'cost_sync_enabled': settings.BooleanSetting(
+        display_name='Cost Synchronization Enabled',
+        group='Cost Sync',
+        group_order=9,
+        default='False',
+        description='Enable Azure cost synchronization'
+    ),
+    'cost_storage_container_name': settings.StringSetting(
+        display_name='Storage Container Name',
+        group='Cost Sync',
+        group_order=9,
+        required=True,
+        requires=['cost_sync_enabled'],
+        description='The name of the Azure storage container where cost '
+                    'reports are saved'
+    ),
+    'cost_directory_name': settings.StringSetting(
+        display_name='Directory Name',
+        group='Cost Sync',
+        group_order=9,
+        required=True,
+        requires=['cost_sync_enabled'],
+        description='The name of the directory in the storage container '
+                    'in which to scan for cost reports'
+    ),
+    'cost_report_name': settings.StringSetting(
+        display_name='Report Name',
+        group='Cost Sync',
+        group_order=9,
+        required=True,
+        requires=['cost_sync_enabled'],
+        description='The name of the cost report'
+    ),
+    'cost_columns_for_processing': settings.TagListSetting(
+        group='Cost Sync',
+        group_order=9,
+        advanced=True,
+        required=True,
+        requires=['cost_sync_enabled'],
+        default='UsageDateTime=usageDate,ConsumedService=costType,'
+                'MeterName=Operation,ResourceRate=hourlyRate,'
+                'PreTaxCost=spend,UsageQuantity=usageHours,Instance=instance',
+    ),
+    'cost_columns_for_unisight': settings.StringSetting(
+        group='Cost Sync',
+        group_order=9,
+        list=True,
+        advanced=True,
+        required=True,
+        requires=['cost_sync_enabled'],
+        default='provider,costType,instance,hourlyRate,usageHours,spend,tags,'
+                'usageDate,costCenterId,clusterId,name,size,'
+                'transferDirection',
+    ),
+    'cost_upload_path': settings.StringSetting(
+        group='Cost Sync',
+        group_order=9,
+        list=True,
+        advanced=True,
+        required=True,
+        requires=['cost_sync_enabled'],
+        default='/var/tmp/'
     )
+
 }
 
 
