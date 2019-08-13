@@ -188,8 +188,26 @@ AZURE_SETTINGS_DICT = {
         display_name='Cost Synchronization Enabled',
         group='Cost Sync',
         group_order=9,
-        default='False',
         description='Enable Azure cost synchronization'
+    ),
+    'cost_storage_account': settings.StringSetting(
+        display_name='Storage Account',
+        group='Cost Sync',
+        group_order=9,
+        required=True,
+        requires=['cost_sync_enabled'],
+        description='The name of the Azure storage account where cost '
+                    'reports are saved'
+    ),
+    'cost_storage_account_key': settings.StringSetting(
+        display_name='Storage Account Key',
+        group='Cost Sync',
+        group_order=9,
+        secret=True,
+        required=True,
+        requires=['cost_sync_enabled'],
+        description='The access key for the storage account where cost '
+                    'reports are saved'
     ),
     'cost_storage_container_name': settings.StringSetting(
         display_name='Storage Container Name',
@@ -197,8 +215,8 @@ AZURE_SETTINGS_DICT = {
         group_order=9,
         required=True,
         requires=['cost_sync_enabled'],
-        description='The name of the Azure storage container where cost '
-                    'reports are saved'
+        description='The name of the Azure storage container in the storage '
+                    'account where cost reports are saved'
     ),
     'cost_directory_name': settings.StringSetting(
         display_name='Directory Name',
@@ -217,37 +235,6 @@ AZURE_SETTINGS_DICT = {
         requires=['cost_sync_enabled'],
         description='The name of the cost report'
     ),
-    'cost_columns_for_processing': settings.TagListSetting(
-        group='Cost Sync',
-        group_order=9,
-        advanced=True,
-        required=True,
-        requires=['cost_sync_enabled'],
-        default='UsageDateTime=usageDate,ConsumedService=costType,'
-                'MeterName=Operation,ResourceRate=hourlyRate,'
-                'PreTaxCost=spend,UsageQuantity=usageHours,Instance=instance',
-    ),
-    'cost_columns_for_unisight': settings.StringSetting(
-        group='Cost Sync',
-        group_order=9,
-        list=True,
-        advanced=True,
-        required=True,
-        requires=['cost_sync_enabled'],
-        default='provider,costType,instance,hourlyRate,usageHours,spend,tags,'
-                'usageDate,costCenterId,clusterId,name,size,'
-                'transferDirection',
-    ),
-    'cost_upload_path': settings.StringSetting(
-        group='Cost Sync',
-        group_order=9,
-        list=True,
-        advanced=True,
-        required=True,
-        requires=['cost_sync_enabled'],
-        default='/var/tmp/'
-    )
-
 }
 
 

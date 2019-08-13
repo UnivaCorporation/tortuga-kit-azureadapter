@@ -1031,6 +1031,7 @@ class AzureAdapter(ResourceAdapter):
                 'adminport': self._cm.getAdminPort(),
                 'cfmuser': self._cm.getCfmUser(),
                 'cfmpassword': self._cm.getCfmPassword(),
+                'insertnode_request': insertnode_request,
             })
 
             for inp in fp.readlines():
@@ -1044,12 +1045,10 @@ override_dns_domain = %(override_dns_domain)s
 dns_search = '%(dns_domain)s'
 dns_domain = '%(dns_domain)s'
 dns_nameservers = %(dns_nameservers)s
-''' % (settings_dict)
-                    if insertnode_request is not None:
-                        result += '''\
+
 # Insert_node
-insertnode_request = %s
-''' % (insertnode_request)
+insertnode_request = %(insertnode_request)s
+''' % settings_dict
                 else:
                     result += inp
 
