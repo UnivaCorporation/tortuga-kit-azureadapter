@@ -188,13 +188,15 @@ AZURE_SETTINGS_DICT = {
         display_name='Cost Synchronization Enabled',
         group='Cost Sync',
         group_order=9,
-        description='Enable Azure cost synchronization'
+        description='Enable Azure cost synchronization',
+        requires=['cost_storage_account', 'cost_storage_account_key',
+                  'cost_storage_container_name', 'cost_directory_name',
+                  'cost_report_name']
     ),
     'cost_storage_account': settings.StringSetting(
         display_name='Storage Account',
         group='Cost Sync',
         group_order=9,
-        required=True,
         requires=['cost_sync_enabled'],
         description='The name of the Azure storage account where cost '
                     'reports are saved'
@@ -204,7 +206,6 @@ AZURE_SETTINGS_DICT = {
         group='Cost Sync',
         group_order=9,
         secret=True,
-        required=True,
         requires=['cost_sync_enabled'],
         description='The access key for the storage account where cost '
                     'reports are saved'
@@ -213,7 +214,6 @@ AZURE_SETTINGS_DICT = {
         display_name='Storage Container Name',
         group='Cost Sync',
         group_order=9,
-        required=True,
         requires=['cost_sync_enabled'],
         description='The name of the Azure storage container in the storage '
                     'account where cost reports are saved'
@@ -222,7 +222,6 @@ AZURE_SETTINGS_DICT = {
         display_name='Directory Name',
         group='Cost Sync',
         group_order=9,
-        required=True,
         requires=['cost_sync_enabled'],
         description='The name of the directory in the storage container '
                     'in which to scan for cost reports'
@@ -231,7 +230,6 @@ AZURE_SETTINGS_DICT = {
         display_name='Report Name',
         group='Cost Sync',
         group_order=9,
-        required=True,
         requires=['cost_sync_enabled'],
         description='The name of the cost report'
     ),
