@@ -41,7 +41,8 @@ AZURE_SETTINGS_DICT = {
     'client_id': settings.StringSetting(
         required=True,
         description='Azure client ID; obtainable from azure CLI or '
-                    'Management Portal'
+                    'Management Portal',
+        mutually_exclusive=['credential_vault_path']
     ),
     'tenant_id': settings.StringSetting(
         required=True,
@@ -52,8 +53,14 @@ AZURE_SETTINGS_DICT = {
         required=True,
         description='Azure client secret; obtainable from azure CLI or '
                     'Management Portal',
-        secret=True
+        secret=True,
+        mutually_exclusive=['credential_vault_path']
     ),
+    'credential_vault_path' : settings.StringSetting(
+        display_name='Credential Vault Path',
+        description='Path to Azure client credentials stored in Vault.',
+        mutually_exclusive=['secret','client_id'],
+     ),
     'security_group': settings.StringSetting(
         required=True,
         description='Azure security group to associate with created '

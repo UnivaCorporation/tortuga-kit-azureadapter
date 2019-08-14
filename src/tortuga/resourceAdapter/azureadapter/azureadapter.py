@@ -468,6 +468,15 @@ class AzureAdapter(ResourceAdapter):
             config['dns_nameservers'] = [
                 self.installer_public_ipaddress,
             ]
+        #
+        # Resolve credentials from vault
+        #
+        if config.get('credential_vault_path'):
+            # Check in vault for our keys
+            record = self._cm.loadFromVault(config.get('credential_vault_path'))
+            if record is not None:
+                config['client_id'] = record.get('data',{}).get('client_id')
+                config['secret'] = record.get('data',{}).get('secret')
 
     def __get_config(self, addNodesRequest, hardwareprofile):
         profile = addNodesRequest.get('resource_adapter_configuration')
