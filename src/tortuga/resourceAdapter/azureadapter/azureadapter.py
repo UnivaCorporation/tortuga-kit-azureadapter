@@ -93,10 +93,13 @@ class AzureAdapter(ResourceAdapter):
                 config = self.__get_config(addNodesRequest, dbHardwareProfile)
                 azure_session = AzureSession(config=config)
                 # inserting nodes based on metadata
-                node = self.__insert_node(azure_session, dbSession,
-                           dbHardwareProfile, dbSoftwareProfile,
-                           addNodesRequest,
-                           addNodesRequest.get('resource_adapter_configuration')
+                node = self.__insert_node(
+                    azure_session,
+                    dbSession,
+                    dbHardwareProfile,
+                    dbSoftwareProfile,
+                    addNodesRequest,
+                    addNodesRequest.get('resource_adapter_configuration')
                 )
 
                 dbSession.commit()
@@ -210,7 +213,9 @@ class AzureAdapter(ResourceAdapter):
 
     def __get_scale_set_parameters(self, session, name):
             # pylint: disable=no-self-use
-        """Create the VM parameters structure.
+        """
+        Create the VM parameters structure.
+
         """
 
         ssh_public_key = session.config['ssh_key_value']
@@ -267,13 +272,13 @@ class AzureAdapter(ResourceAdapter):
                 session.config['subnet_name'][0])
         ip_config = {
                        'name': name + 'IpConfig',
-                       'subnet' : {
-                           'id' : subnet.id
+                       'subnet': {
+                           'id': subnet.id
                        }
         }
         if session.config['allocate_public_ip']:
             ip_config['public_ip_address_configuration'] = {
-                'name' : 'pub1',
+                'name': 'pub1',
                 'idle_timeout_in_minutues': 15,
             }
         virtualMachineProfile = {
@@ -300,7 +305,7 @@ class AzureAdapter(ResourceAdapter):
                 'network_interface_configurations': [
                     {
                         'name': name + 'Nic',
-                        'primary' : True,
+                        'primary': True,
                         'ip_configurations': [
                             ip_config
                         ]
@@ -310,7 +315,7 @@ class AzureAdapter(ResourceAdapter):
         }
 
         result = {
-            'sku' : {
+            'sku': {
                 'tier': 'Standard',
                 'capacity': 0,
                 'name': session.config['size'],
@@ -322,14 +327,11 @@ class AzureAdapter(ResourceAdapter):
                     'mode': 'Manual'
                 },
                 'virtualMachineProfile': virtualMachineProfile,
-            }
+            },
+            'tags': {},
         }
 
-        # TODO: TAGS
-        #result['tags'] = session['tags']
-
         return result
-
 
     def create_scale_set(self,
               name: str,
@@ -347,12 +349,13 @@ class AzureAdapter(ResourceAdapter):
         :raises InvalidArgument:
         """
         config = self.get_config(resourceAdapterProfile)
-                      
-        session = AzureSession(config=config)
-        
-        parameters = self.__get_scale_set_parameters(session,name)
+        az_session = AzureSession(config=config)
+        tags = self.get_tags(config, hardwareProfile, softwareProfile)
+
+        parameters = self.__get_scale_set_parameters(az_session, name)
         parameters['sku']['capacity'] = desiredCount
         parameters['properties']['virtualMachineProfile']['os_profile']['computerNamePrefix'] = name
+        parameters['tags'] = tags
 
         priority = adapter_args.get('priority')
         if priority is not None:
@@ -368,12 +371,12 @@ class AzureAdapter(ResourceAdapter):
         encrypted_insertnode_request = encrypt_insertnode_request(
                     self._cm.get_encryption_key(),
                     insertnode_request)
-        custom_data = self.__get_custom_data(session, None, encrypted_insertnode_request)
+        custom_data = self.__get_custom_data(az_session, None, encrypted_insertnode_request)
         if custom_data is not None:
             parameters['properties']['virtualMachineProfile']['os_profile']['custom_data'] = \
                 base64.b64encode(custom_data.encode()).decode()
-        session.compute_client.virtual_machine_scale_sets.create_or_update(
-            session.config['resource_group'], name, parameters)
+        az_session.compute_client.virtual_machine_scale_sets.create_or_update(
+            az_session.config['resource_group'], name, parameters)
 
     def update_scale_set(self,
               name: str,
@@ -403,7 +406,6 @@ class AzureAdapter(ResourceAdapter):
         :raises InvalidArgument:
         """
         config = self.get_config(resourceAdapterProfile)
-
         session = AzureSession(config=config)
 
         session.compute_client.virtual_machine_scale_sets.delete(
@@ -549,8 +551,9 @@ class AzureAdapter(ResourceAdapter):
         dbSession.add_all(nodes)
         dbSession.commit()
 
-        addNodesRequest['tags'] = self.get_tags(azure_session.config, hardwareprofile,
-                                                softwareprofile)
+        addNodesRequest['tags'] = self.get_tags(azure_session.config,
+                                                hardwareprofile.name,
+                                                softwareprofile.name)
 
         return nodes
 
@@ -632,7 +635,7 @@ class AzureAdapter(ResourceAdapter):
     def __insert_node(self, session: AzureSession, dbSession: Session,
                        dbHardwareProfile: HardwareProfile, dbSoftwareProfile: SoftwareProfile,
                        addNodesRequest: dict, resourceAdapter: str
-                       ) -> List[Node]:
+                       ) -> Node:
         """
         Directly insert nodes with pre-existing Azure instances
 
