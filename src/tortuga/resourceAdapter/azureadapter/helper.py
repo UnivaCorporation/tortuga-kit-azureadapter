@@ -186,7 +186,60 @@ AZURE_SETTINGS_DICT = {
     'launch_timeout': settings.IntegerSetting(
         default='300',
         advanced=True
-    )
+    ),
+
+    #
+    # Settings for Navops Launch 2.0
+    #
+    'cost_sync_enabled': settings.BooleanSetting(
+        display_name='Cost Synchronization Enabled',
+        group='Cost Sync',
+        group_order=9,
+        description='Enable Azure cost synchronization',
+        requires=['cost_storage_account', 'cost_storage_account_key',
+                  'cost_storage_container_name', 'cost_directory_name',
+                  'cost_report_name']
+    ),
+    'cost_storage_account': settings.StringSetting(
+        display_name='Storage Account',
+        group='Cost Sync',
+        group_order=9,
+        requires=['cost_sync_enabled'],
+        description='The name of the Azure storage account where cost '
+                    'reports are saved'
+    ),
+    'cost_storage_account_key': settings.StringSetting(
+        display_name='Storage Account Key',
+        group='Cost Sync',
+        group_order=9,
+        secret=True,
+        requires=['cost_sync_enabled'],
+        description='The access key for the storage account where cost '
+                    'reports are saved'
+    ),
+    'cost_storage_container_name': settings.StringSetting(
+        display_name='Storage Container Name',
+        group='Cost Sync',
+        group_order=9,
+        requires=['cost_sync_enabled'],
+        description='The name of the Azure storage container in the storage '
+                    'account where cost reports are saved'
+    ),
+    'cost_directory_name': settings.StringSetting(
+        display_name='Directory Name',
+        group='Cost Sync',
+        group_order=9,
+        requires=['cost_sync_enabled'],
+        description='The name of the directory in the storage container '
+                    'in which to scan for cost reports'
+    ),
+    'cost_report_name': settings.StringSetting(
+        display_name='Report Name',
+        group='Cost Sync',
+        group_order=9,
+        requires=['cost_sync_enabled'],
+        description='The name of the cost report'
+    ),
 }
 
 
