@@ -220,6 +220,9 @@ def main():
     if insertnode_request is not None:
         addNode()
 
+    if not _isPackageInstalled('git'):
+        _installPackage('git')
+
     install_puppet(distro_maj_vers)
 
     bootstrap_puppet()
