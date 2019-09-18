@@ -46,17 +46,15 @@ from tortuga.resourceAdapter.resourceAdapter import \
     DEFAULT_CONFIGURATION_PROFILE_NAME, ResourceAdapter
 
 from .exceptions import AzureOperationTimeout
-from .helper import AZURE_SETTINGS_DICT, _get_encoded_list
+from .helper import _get_encoded_list
 from .session import AzureSession
-
-
-AZURE_ASYNC_OP_TIMEOUT = 900
+from .settings import AZURE_ASYNC_OP_TIMEOUT, SETTINGS
 
 
 class AzureAdapter(ResourceAdapter):
     __adaptername__ = 'azure'
 
-    settings = AZURE_SETTINGS_DICT
+    settings = SETTINGS
 
     def __init__(self, addHostSession: Optional[str] = None) -> None:
         super().__init__(addHostSession=addHostSession)
