@@ -348,7 +348,7 @@ class AzureAdapter(ResourceAdapter):
         """
         config = self.get_config(resourceAdapterProfile)
         az_session = AzureSession(config=config)
-        tags = self.get_tags(config, hardwareProfile, softwareProfile)
+        tags = self.get_initial_tags(config, hardwareProfile, softwareProfile)
 
         parameters = self.__get_scale_set_parameters(az_session, name)
         parameters['sku']['capacity'] = desiredCount
@@ -549,9 +549,9 @@ class AzureAdapter(ResourceAdapter):
         dbSession.add_all(nodes)
         dbSession.commit()
 
-        addNodesRequest['tags'] = self.get_tags(azure_session.config,
-                                                hardwareprofile.name,
-                                                softwareprofile.name)
+        addNodesRequest['tags'] = self.get_initial_tags(azure_session.config,
+                                                        hardwareprofile.name,
+                                                        softwareprofile.name)
 
         return nodes
 
@@ -1919,6 +1919,47 @@ insertnode_request = %(insertnode_request)s
             self._logger.error(msg)
 
             raise ConfigurationError(msg)
+
+    def set_node_tag(self, node: Node, tag_name: str, tag_value: str):
+        config = self.get_node_resource_adapter_config(node)
+        az_session = AzureSession(config=config)
+        client = az_session.compute_client
+        #
+        # Get the current instance
+        #
+        instance_id = node.instance.instance
+        instance = client.get(config['resource_group'], instance_id)
+        if tag_name in instance.tags.keys() and \
+                instance.tags[tag_name] == tag_value:
+            return
+        instance.tags[tag_name] = tag_value
+        #
+        # Set the tag
+        #
+        update = {
+            "tags": instance.tags
+        }
+        client.update(config['resource_group'], instance_id, update)
+
+    def unset_node_tag(self, node: Node, tag_name: str):
+        config = self.get_node_resource_adapter_config(node)
+        az_session = AzureSession(config=config)
+        client = az_session.compute_client
+        #
+        # Get the current instance
+        #
+        instance_id = node.instance.instance
+        instance = client.get(config['resource_group'], instance_id)
+        if tag_name not in instance.tags.keys():
+            return
+        #
+        # Remove the tag
+        #
+        instance.tags.pop(tag_name)
+        update = {
+            "tags": instance.tags
+        }
+        client.update(config['resource_group'], instance_id, update)
 
 
 def get_vm_name(name):
