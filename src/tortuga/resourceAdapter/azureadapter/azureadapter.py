@@ -35,6 +35,7 @@ from tortuga.db.models.instanceMapping import InstanceMapping
 from tortuga.db.models.instanceMetadata import InstanceMetadata
 from tortuga.db.models.nic import Nic
 from tortuga.db.models.node import Node
+from tortuga.db.models.nodeTag import NodeTag
 from tortuga.db.models.softwareProfile import SoftwareProfile
 from tortuga.db.nodesDbHandler import NodesDbHandler
 from tortuga.exceptions.configurationError import ConfigurationError
@@ -137,13 +138,18 @@ class AzureAdapter(ResourceAdapter):
 
         return result
 
-    def __create_node(self, session: Session, hardwareprofile: HardwareProfile,
+    def __create_node(self, session: Session,
+                      hardwareprofile: HardwareProfile,
                       softwareprofile: SoftwareProfile,
                       name: Optional[str] = None,
-                      override_dns_domain: Optional[str] = None) -> Node:
+                      override_dns_domain: Optional[str] = None,
+                      tags: Dict[str, str] = None) -> Node:
         """
         Create node record
         """
+        if not tags:
+            tags = {}
+
         if name is None:
             name = self.addHostApi.generate_node_name(
                 session,
@@ -154,56 +160,67 @@ class AzureAdapter(ResourceAdapter):
             if not override_dns_domain and '.' in self.installer_public_hostname:
                 # Extract host name from generated node name and append
                 # DNS domain from installer host name
-
                 dns_zone = self.installer_public_hostname.split('.', 1)[1]
-
                 generated_hostname = name.split('.', 1)[0]
-
                 name = '{}.{}'.format(generated_hostname, dns_zone)
+
             elif override_dns_domain:
                 # Strip 'default' DNS domain suffix from generated node name
                 hostname, domain = name.split('.', 1)
-
                 if domain != override_dns_domain:
                     # Handle adapter-specific DNS domain (ie. multi-cloud)
                     name = '{}.{}'.format(hostname, override_dns_domain)
 
-        return Node(
+        node = Node(
             name=name,
             state=state.NODE_STATE_LAUNCHING,
             hardwareprofile=hardwareprofile,
             softwareprofile=softwareprofile,
             addHostSession=self.addHostSession,
         )
+        for k, v in tags.items():
+            node.tags.append(NodeTag(name=k, value=v))
+
+        return node
 
     def __create_nodes(self, addNodesRequest: dict, session: Session,
                        hardwareprofile: HardwareProfile,
                        softwareprofile: SoftwareProfile,
                        configDict: dict, *,
-                       metadata: Optional[dict] = None) -> List[Node]: \
-            # pylint: disable=unused-argument
+                       metadata: Optional[dict] = None) -> List[Node]:
         """
         Create nodes records
-        """
 
-        dns_domain = None \
-            if not configDict.get('override_dns_domain', None) \
-            else configDict['dns_domain']
+        """
+        if not metadata:
+            metadata = {}
+
+        dns_domain = None
+        if configDict.get('override_dns_domain', None):
+            dns_domain = configDict['dns_domain']
 
         nodes: List[Node] = []
 
-        node_details = addNodesRequest.get('nodeDetails',[])
+        node_details = addNodesRequest.get('nodeDetails', [])
+        tags = metadata.get('tags', {})
+
         for i in range(addNodesRequest["count"]):
+            name = None
+            if i < len(node_details):
+                name = node_details[i]['name']
+
             node = self.__create_node(
                 session,
                 hardwareprofile,
                 softwareprofile,
                 override_dns_domain=dns_domain,
-                name=node_details[i]['name'] if i < len(node_details) else None
+                name=name,
+                tags=tags
             )
 
-            if metadata and 'vcpus' in metadata:
-                node.vcpus = metadata['vcpus']
+            vcpus = metadata.get('vcpus', None)
+            if vcpus:
+                node.vcpus = vcpus
 
             nodes.append(node)
 
@@ -532,7 +549,11 @@ class AzureAdapter(ResourceAdapter):
             azure_session.config['size'],
         )
 
-        # If a name is provided force it...
+        tags = self.get_initial_tags(azure_session.config,
+                                     hardwareprofile.name,
+                                     softwareprofile.name)
+        addNodesRequest['tags'] = tags
+
         # Precreate node records
         nodes = self.__create_nodes(
             addNodesRequest,
@@ -542,16 +563,13 @@ class AzureAdapter(ResourceAdapter):
             azure_session.config,
             metadata={
                 'vcpus': vcpus,
+                'tags': tags,
             }
         )
 
         # Commit Nodes to database
         dbSession.add_all(nodes)
         dbSession.commit()
-
-        addNodesRequest['tags'] = self.get_initial_tags(azure_session.config,
-                                                        hardwareprofile.name,
-                                                        softwareprofile.name)
 
         return nodes
 
