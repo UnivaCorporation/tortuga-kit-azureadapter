@@ -1927,8 +1927,9 @@ insertnode_request = %(insertnode_request)s
         #
         # Get the current instance
         #
-        instance_id = node.instance.instance
-        instance = client.get(config['resource_group'], instance_id)
+        instance_id = get_vm_name(node.name)
+        instance = client.virtual_machines.get(config['resource_group'],
+                                               instance_id)
         if tag_name in instance.tags.keys() and \
                 instance.tags[tag_name] == tag_value:
             return
@@ -1939,7 +1940,8 @@ insertnode_request = %(insertnode_request)s
         update = {
             "tags": instance.tags
         }
-        client.update(config['resource_group'], instance_id, update)
+        client.virtual_machines.update(config['resource_group'], instance_id,
+                                       update)
 
     def unset_node_tag(self, node: Node, tag_name: str):
         config = self.get_node_resource_adapter_config(node)
@@ -1948,8 +1950,9 @@ insertnode_request = %(insertnode_request)s
         #
         # Get the current instance
         #
-        instance_id = node.instance.instance
-        instance = client.get(config['resource_group'], instance_id)
+        instance_id = get_vm_name(node.name)
+        instance = client.virtual_machines.get(config['resource_group'],
+                                               instance_id)
         if tag_name not in instance.tags.keys():
             return
         #
@@ -1959,7 +1962,8 @@ insertnode_request = %(insertnode_request)s
         update = {
             "tags": instance.tags
         }
-        client.update(config['resource_group'], instance_id, update)
+        client.virtual_machines.update(config['resource_group'], instance_id,
+                                       update)
 
 
 def get_vm_name(name):
