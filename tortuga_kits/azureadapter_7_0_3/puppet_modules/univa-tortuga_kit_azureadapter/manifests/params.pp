@@ -14,8 +14,13 @@
 
 
 class tortuga_kit_azureadapter::params {
-  $major_version = '7.1'
-  $version = '7.1.0'
+  $kit_info_data = kit_info()
 
-  $kitdescr = "azureadapter-${version}-0"
+  $kname          = $kit_info_data['name']
+  $version       = $kit_info_data['version']
+  $iteration     = $kit_info_data['iteration']
+  $version_parts = split($version,'\.')
+  $major_version = "${version_parts[0]}.${version_parts[1]}"
+
+  $kitdescr = "${kname}-${version}-${iteration}"
 }
