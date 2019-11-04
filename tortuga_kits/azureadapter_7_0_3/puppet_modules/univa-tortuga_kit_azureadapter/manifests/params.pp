@@ -14,7 +14,7 @@
 
 
 class tortuga_kit_azureadapter::params {
-  $kit_info_data = kit_info()
+  $kit_info_data = azureadapter_info()
 
   $kname          = $kit_info_data['name']
   $version       = $kit_info_data['version']
