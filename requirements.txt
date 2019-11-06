@@ -1,6 +1,6 @@
 urllib3==1.24.2
-azure-cli==2.0.55
+azure-cli==2.0.76
 colorama
 gevent
-msrestazure==0.6.0
+msrestazure==0.6.2
 Jinja2
