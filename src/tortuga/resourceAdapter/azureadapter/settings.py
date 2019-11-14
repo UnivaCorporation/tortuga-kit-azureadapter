@@ -169,6 +169,14 @@ SETTINGS = {
                     'The SSH public key will be read from this file.',
         **GROUP_INSTANCES
     ),
+    'randomize_hostname': settings.BooleanSetting(
+        display_name='Randomize Hostname',
+        description='Append random string to generated host names'
+                    'to prevent name collisions in highly dynamic '
+                    'environments',
+        default='True',
+        **GROUP_INSTANCES
+    ),
 
     #
     # Authentication

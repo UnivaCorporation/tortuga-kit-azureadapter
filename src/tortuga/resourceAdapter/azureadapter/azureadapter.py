@@ -142,6 +142,7 @@ class AzureAdapter(ResourceAdapter):
                       hardwareprofile: HardwareProfile,
                       softwareprofile: SoftwareProfile,
                       name: Optional[str] = None,
+                      randomize_name: bool = False,
                       override_dns_domain: Optional[str] = None,
                       tags: Dict[str, str] = None) -> Node:
         """
@@ -154,7 +155,7 @@ class AzureAdapter(ResourceAdapter):
             name = self.addHostApi.generate_node_name(
                 session,
                 hardwareprofile.nameFormat,
-                randomize=True,
+                randomize=randomize_name,
                 dns_zone=self.private_dns_zone)
 
             if not override_dns_domain and '.' in self.installer_public_hostname:
@@ -215,6 +216,7 @@ class AzureAdapter(ResourceAdapter):
                 softwareprofile,
                 override_dns_domain=dns_domain,
                 name=name,
+                randomize_name=configDict.get('randomize_hostname', False),
                 tags=tags
             )
 
