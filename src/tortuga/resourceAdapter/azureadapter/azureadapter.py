@@ -45,6 +45,7 @@ from tortuga.exceptions.invalidArgument import InvalidArgument
 from tortuga.node import state
 from tortuga.resourceAdapter.resourceAdapter import \
     DEFAULT_CONFIGURATION_PROFILE_NAME, ResourceAdapter
+from tortuga.resourceAdapter.utility import patch_managed_tags
 
 from .exceptions import AzureOperationTimeout
 from .helper import _get_encoded_list
@@ -372,7 +373,7 @@ class AzureAdapter(ResourceAdapter):
         parameters = self.__get_scale_set_parameters(az_session, name)
         parameters['sku']['capacity'] = desiredCount
         parameters['properties']['virtualMachineProfile']['os_profile']['computerNamePrefix'] = name
-        parameters['tags'] = tags
+        parameters['tags'] = patch_managed_tags(tags)
 
         priority = adapter_args.get('priority')
         if priority is not None:
@@ -1219,7 +1220,7 @@ insertnode_request = %(insertnode_request)s
         }
 
         if tags:
-            result['tags'] = tags
+            result['tags'] = patch_managed_tags(tags)
 
         if custom_data is not None:
             result['os_profile']['custom_data'] = \
