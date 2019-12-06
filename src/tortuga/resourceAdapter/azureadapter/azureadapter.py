@@ -383,8 +383,9 @@ class AzureAdapter(ResourceAdapter):
             parameters['properties']['virtualMachineProfile']['eviction_policy'] = evictionPolicy
 
         insertnode_request = {
-                   'softwareProfile': softwareProfile,
-                   'hardwareProfile': hardwareProfile,
+            'softwareProfile': softwareProfile,
+            'hardwareProfile': hardwareProfile,
+            'resource_adapter_configuration': resourceAdapterProfile,
         }
         encrypted_insertnode_request = encrypt_insertnode_request(
                     self._cm.get_encryption_key(),
