@@ -413,7 +413,7 @@ class AzureAdapter(ResourceAdapter):
         :raises InvalidArgument:
         """
         self.create_scale_set(name,resourceAdapterProfile,hardwareProfile,
-            softwareProfile, minCount, maxCount, desiredCount)
+            softwareProfile, minCount, maxCount, desiredCount, adapter_args)
 
     def delete_scale_set(self,
               name: str,
@@ -746,6 +746,7 @@ class AzureAdapter(ResourceAdapter):
             internal_ip,
         )
 
+        vm_name = get_vm_name(node.name)
         node.instance = InstanceMapping(
             instance=nodeDetail['name'],
             instance_metadata=[
