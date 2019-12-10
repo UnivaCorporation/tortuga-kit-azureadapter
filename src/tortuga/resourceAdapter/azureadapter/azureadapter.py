@@ -746,6 +746,7 @@ class AzureAdapter(ResourceAdapter):
             internal_ip,
         )
 
+        vm_name = get_vm_name(node.name)
         node.instance = InstanceMapping(
             instance=nodeDetail['name'],
             instance_metadata=[
