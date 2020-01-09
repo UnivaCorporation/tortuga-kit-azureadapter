@@ -26,7 +26,6 @@ import urllib2
 import itertools
 import socket
 
-
 ### SETTINGS
 
 def get_instance_data(path):
@@ -58,7 +57,11 @@ def addNode():
     tryCommand("curl http://%s:8008/ca.pem > /etc/pki/ca-trust/source/anchors/tortuga-ca.pem" % installerIpAddress)
     tryCommand("update-ca-trust")
     instance_name = get_instance_data('/compute/name')
-    host_name = socket.getfqdn()+ "." + dns_domain
+    if override_dns_domain:
+        host_name = socket.getfqdn() + "." + dns_domain
+    else:
+        host_name = socket.getfqdn() + "." + installerHostName.split('.', 1)[1]
+
     private_ip = get_instance_data('/network/interface/0/ipv4/ipAddress/0/privateIpAddress')
     try:
         scale_set_name = get_instance_data('/compute/vmScaleSetName')
