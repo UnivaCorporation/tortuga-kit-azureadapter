@@ -390,7 +390,10 @@ class AzureAdapter(ResourceAdapter):
         encrypted_insertnode_request = encrypt_insertnode_request(
                     self._cm.get_encryption_key(),
                     insertnode_request)
-        custom_data = self.__get_custom_data(az_session, None, encrypted_insertnode_request)
+        custom_data = self.__get_custom_data(
+            az_session.config,
+            insertnode_request=encrypted_insertnode_request
+        )
         if custom_data is not None:
             parameters['properties']['virtualMachineProfile']['os_profile']['custom_data'] = \
                 base64.b64encode(custom_data.encode()).decode()
@@ -896,7 +899,7 @@ class AzureAdapter(ResourceAdapter):
 
         self._logger.info('Launching VM [%s]', vm_name)
 
-        custom_data = self.__get_custom_data(azure_session, node)
+        custom_data = self.__get_custom_data(azure_session.config, node=node)
 
         try:
             with gevent.Timeout(
@@ -1009,16 +1012,16 @@ class AzureAdapter(ResourceAdapter):
 
         return node_request_queue
 
-    def __get_custom_data(self, azure_session, node, insertnode_request=None):
+    def __get_custom_data(self, config, node=None, insertnode_request=None):
         self._logger.debug(
             '__get_custom_data()'
         )
 
-        if 'cloud_init_script_template' in azure_session.config:
-            return self.__get_cloud_init_custom_data(azure_session.config)
-        elif 'user_data_script_template' in azure_session.config:
-            return self.__get_bootstrap_script(
-                azure_session.config, node, insertnode_request)
+        if 'cloud_init_script_template' in config:
+            return self.__get_cloud_init_custom_data(config)
+        elif 'user_data_script_template' in config:
+            return self.__get_bootstrap_script(config, node,
+                                               insertnode_request)
 
         return None
 
@@ -1053,7 +1056,7 @@ class AzureAdapter(ResourceAdapter):
             _get_encoded_list(configDict['dns_nameservers'])
         }
 
-    def __get_bootstrap_script(self, configDict, node, 
+    def __get_bootstrap_script(self, configDict, node=None,
                 insertnode_request: Optional[bytes] = None) -> str:
         """Generate node-specific custom data from template"""
 
