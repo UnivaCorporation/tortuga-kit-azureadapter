@@ -2031,10 +2031,35 @@ insertnode_request = %(insertnode_request)s
         session = AzureSession(config=cfg)
         resource_group_name, vm_name = self._get_vm_name_from_cloudserver_id(
             cloudserver_id)
+        vm = session.compute_client.virtual_machines.get(resource_group_name,
+                                                         vm_name)
         response = session.compute_client.virtual_machines.delete(
             resource_group_name, vm_name)
         while not response.done():
             time.sleep(5)
+        #
+        # Delete network interface(s)
+        #
+        for network_interface in vm.network_profile.network_interfaces:
+            self.__azure_delete_network_interface(
+                session, os.path.basename(network_interface.id))
+        #
+        # Delete OS disk
+        #
+        if vm.storage_profile.os_disk.vhd:
+            blob_name = os.path.basename(
+                vm.storage_profile.os_disk.vhd.uri)
+            try:
+                self.__azure_delete_vhd(session, blob_name)
+            except ResourceNotFound:
+                self._logger.info('Blob does not exist: %s', blob_name)
+        elif vm.storage_profile.os_disk.managed_disk:
+            disk_name = vm.storage_profile.os_disk.name
+            try:
+                self.__azure_delete_managed_disk(session, disk_name)
+            except ResourceNotFound:
+                self._logger.info('Managed disk does not exist: %s',
+                                  disk_name)
 
     def _get_vm_name_from_cloudserver_id(self,
                                          cloudserver_id) -> Tuple[str, str]:
