@@ -17,6 +17,7 @@ import datetime
 import itertools
 import os.path
 import random
+import time
 from typing import Any, Dict, Generator, List, NoReturn, Optional, Tuple, Union
 
 from jinja2 import Environment, FileSystemLoader
@@ -1990,6 +1991,88 @@ insertnode_request = %(insertnode_request)s
         }
         client.virtual_machines.update(config['resource_group'], instance_id,
                                        update)
+
+    def cloudserveraction_stop(self, cloudconnectorprofile_id: str,
+                               cloudserver_id: str, **kwargs):
+        cfg = self.get_config(cloudconnectorprofile_id)
+        session = AzureSession(config=cfg)
+        resource_group_name, vm_name = self._get_vm_name_from_cloudserver_id(
+            cloudserver_id)
+        response = session.compute_client.virtual_machines.power_off(
+                resource_group_name, vm_name)
+        while not response.done():
+            time.sleep(5)
+
+    def cloudserveraction_start(self, cloudconnectorprofile_id: str,
+                                cloudserver_id: str, **kwargs):
+        cfg = self.get_config(cloudconnectorprofile_id)
+        session = AzureSession(config=cfg)
+        resource_group_name, vm_name = self._get_vm_name_from_cloudserver_id(
+            cloudserver_id)
+        response = session.compute_client.virtual_machines.start(
+                resource_group_name, vm_name)
+        while not response.done():
+            time.sleep(5)
+
+    def cloudserveraction_restart(self, cloudconnectorprofile_id: str,
+                                  cloudserver_id: str, **kwargs):
+        cfg = self.get_config(cloudconnectorprofile_id)
+        session = AzureSession(config=cfg)
+        resource_group_name, vm_name = self._get_vm_name_from_cloudserver_id(
+            cloudserver_id)
+        response = session.compute_client.virtual_machines.restart(
+                resource_group_name, vm_name)
+        while not response.done():
+            time.sleep(5)
+
+    def cloudserveraction_delete(self, cloudconnectorprofile_id: str,
+                                 cloudserver_id: str, **kwargs):
+        cfg = self.get_config(cloudconnectorprofile_id)
+        session = AzureSession(config=cfg)
+        resource_group_name, vm_name = self._get_vm_name_from_cloudserver_id(
+            cloudserver_id)
+        vm = session.compute_client.virtual_machines.get(resource_group_name,
+                                                         vm_name)
+        response = session.compute_client.virtual_machines.delete(
+            resource_group_name, vm_name)
+        while not response.done():
+            time.sleep(5)
+        #
+        # Delete network interface(s)
+        #
+        for network_interface in vm.network_profile.network_interfaces:
+            self.__azure_delete_network_interface(
+                session, os.path.basename(network_interface.id))
+        #
+        # Delete OS disk
+        #
+        if vm.storage_profile.os_disk.vhd:
+            blob_name = os.path.basename(
+                vm.storage_profile.os_disk.vhd.uri)
+            try:
+                self.__azure_delete_vhd(session, blob_name)
+            except ResourceNotFound:
+                self._logger.info('Blob does not exist: %s', blob_name)
+        elif vm.storage_profile.os_disk.managed_disk:
+            disk_name = vm.storage_profile.os_disk.name
+            try:
+                self.__azure_delete_managed_disk(session, disk_name)
+            except ResourceNotFound:
+                self._logger.info('Managed disk does not exist: %s',
+                                  disk_name)
+
+    def _get_vm_name_from_cloudserver_id(self,
+                                         cloudserver_id) -> Tuple[str, str]:
+        #
+        # Cloud server IDs for Azure are in the following form
+        # azure:<resource-group-name>:<vm-name>
+        #
+        id_parts = cloudserver_id.split(':')
+        if len(id_parts) != 3:
+            raise Exception("Invalid cloud server id")
+        if id_parts[0].lower() != self.__adaptername__.lower():
+            raise Exception("Resource adapter mismatch")
+        return id_parts[1], id_parts[2]
 
 
 def get_vm_name(name):
