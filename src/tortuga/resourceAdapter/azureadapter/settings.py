@@ -115,7 +115,6 @@ SETTINGS = {
                     'fully-qualified (does not start with a leading'
                     'forward slash), it is assumed the script path is '
                     '$TORTUGA_ROOT/config',
-        required=True,
         base_path='/opt/tortuga/config/',
         mutually_exclusive=['user_data_script_template'],
         overrides=['user_data_script_template'],
@@ -128,7 +127,6 @@ SETTINGS = {
                     'fully-qualified (ie. does not start with a leading '
                     'forward slash), it is assumed the script path is '
                     '$TORTUGA_ROOT/config',
-        required=True,
         base_path='/opt/tortuga/config/',
         mutually_exclusive=['cloud_init_script_template'],
         overrides=['cloud_init_script_template'],
