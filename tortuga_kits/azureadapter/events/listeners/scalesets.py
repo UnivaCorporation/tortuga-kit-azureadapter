@@ -20,6 +20,7 @@ from tortuga.events.listeners.base import BaseListener
 from tortuga.events.types import (ResourceRequestCreated,
                                   ResourceRequestUpdated,
                                   ResourceRequestDeleted)
+from tortuga.exceptions.validationError import ValidationError
 from tortuga.resources.types import (get_resource_request_class,
                                      BaseResourceRequest,
                                      ScaleSetResourceRequest)
@@ -118,6 +119,9 @@ class AzureScaleSetCreatedListener(AzureScaleSetListenerMixin, BaseListener):
         logger.warning('Scale set create request for %s: %s',
                        self._adapter_name, ssr.id)
 
+        # Validate scale set request
+        self._validate_scale_set_request(ssr)
+
         # Load the resource adapter for this request
         try:
             adapter = self.get_resource_adapter()
@@ -142,6 +146,19 @@ class AzureScaleSetCreatedListener(AzureScaleSetListenerMixin, BaseListener):
             logger.error("Error creating resource request: %s", ex)
             self._store.delete(ssr.id)
             raise
+
+    def _validate_scale_set_request(self, ssr: ScaleSetResourceRequest):
+        err_msg = None
+        if not (ssr.hardwareprofile_name and ssr.softwareprofile_name):
+            err_msg = ('Must provide both a hardware profile and software '
+                       'profile to create a scale set.')
+        if ssr.instance_template_name:
+            err_msg = ('Azure does not have instance templates. Provide a '
+                       'hardware profile and software profile instead to '
+                       'create a scale set.')
+
+        if err_msg:
+            raise ValidationError(err_msg) 
 
 
 class AzureScaleSetUpdatedListener(AzureScaleSetListenerMixin, BaseListener):
