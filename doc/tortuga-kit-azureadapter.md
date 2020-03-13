@@ -454,6 +454,11 @@ The following Azure resource adapter configuration settings are
     This is the script run by [WALinuxAgent][] when VMs are initially
     booted.
 
+    Most configurations will want to set either this value or
+    `cloud_init_script_template`, but not all; as a result, these
+    settings are not required and we do not enforce that at least one
+    is set.
+
     **Note:** the official OpenLogic-provided CentOS VM images on Azure
     are [WALinuxAgent][] enabled, however do not enable the ability to
     launch a bootstrap script. A custom or alternative VM image with
