@@ -706,8 +706,13 @@ class AzureAdapter(ResourceAdapter):
             'scale_set_name' in nodeDetail['metadata'] else None
         if scale_set_name == "":
             scale_set_name = None
-        
-        instance = self.__azure_get_vm(session, nodeDetail['name'], scale_set_name, instance_id)
+
+        instance = self.__azure_get_vm(
+            session,
+            get_vm_name(nodeDetail['name']),
+            scale_set_name,
+            instance_id
+        )
 
         if not instance:
             self._logger.warning(
@@ -1345,7 +1350,7 @@ insertnode_request = %(insertnode_request)s
             msrestazure.azure_exceptions.CloudError
         """
 
-        self._logger.debug('__azure_get_vm(): vm_name=[%s}]', vm_name)
+        self._logger.debug('__azure_get_vm(): vm_name=[%s]', vm_name)
 
         if scale_set_name is None:
             return session.compute_client.virtual_machines.get(
