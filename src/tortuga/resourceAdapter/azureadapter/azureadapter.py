@@ -1021,8 +1021,11 @@ class AzureAdapter(ResourceAdapter):
         if 'cloud_init_script_template' in config:
             return self.__get_cloud_init_custom_data(config)
         elif 'user_data_script_template' in config:
-            return self.__get_bootstrap_script(config, node,
-                                               insertnode_request)
+            return self.generate_startup_script(
+                config,
+                node=node,
+                insertnode_request=insertnode_request
+            )
 
         return None
 
@@ -1057,8 +1060,10 @@ class AzureAdapter(ResourceAdapter):
             _get_encoded_list(configDict['dns_nameservers'])
         }
 
-    def __get_bootstrap_script(self, configDict, node=None,
-                insertnode_request: Optional[bytes] = None) -> str:
+    def generate_startup_script(self, configDict: Dict[str, str],
+                                node: Optional[Node] = None,
+                                insertnode_request: Optional[bytes] = None) \
+            -> str:
         """Generate node-specific custom data from template"""
 
         self._logger.info(

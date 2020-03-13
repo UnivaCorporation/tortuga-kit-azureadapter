@@ -79,7 +79,7 @@ def addNode():
                 }
             }
            }
-    print(data)
+    print('Instance details: ' + json.dumps(data))
     url = 'https://%s:%s/v1/node-token/%s' % (installerHostName, port, insertnode_request)
     print(url)
     req = urllib2.Request(url)
