@@ -480,19 +480,21 @@ class AzureAdapter(ResourceAdapter):
                 ' settings'
             )
 
-        #
-        # DNS domain
-        #
-        config['dns_domain'] = config['dns_domain'] \
-            if 'dns_domain' in config else self.private_dns_zone
+        # DNS settings
+        if config.get('override_dns_domain', None):
+            #
+            # DNS domain
+            #
+            if 'dns_domain' not in config:
+                config['dns_domain'] = self.private_dns_zone
 
-        #
-        # DNS nameservers
-        #
-        if config.get('dns_nameservers') is None:
-            config['dns_nameservers'] = [
-                self.installer_public_ipaddress,
-            ]
+            #
+            # DNS nameservers
+            #
+            if config.get('dns_nameservers') is None:
+                config['dns_nameservers'] = [
+                    self.installer_public_ipaddress,
+                ]
         #
         # Resolve credentials from vault
         #
@@ -1052,12 +1054,15 @@ class AzureAdapter(ResourceAdapter):
         """Returns dict containing common template variables shared between
         user-data script template and cloud-init template.
         """
+        dns_domain = configDict.get('dns_domain', None)
+        if dns_domain:
+            dns_domain = f"'{dns_domain}'"
         return {
             'override_dns_domain':
             configDict.get('override_dns_domain', False),
-            'dns_domain': configDict['dns_domain'],
+            'dns_domain': dns_domain,
             'dns_nameservers':
-            _get_encoded_list(configDict['dns_nameservers'])
+            _get_encoded_list(configDict.get('dns_nameservers'))
         }
 
     def generate_startup_script(self, configDict: Dict[str, str],
@@ -1098,8 +1103,8 @@ installerIpAddress = '%(installerIp)s'
 port = %(adminport)d
 
 override_dns_domain = %(override_dns_domain)s
-dns_search = '%(dns_domain)s'
-dns_domain = '%(dns_domain)s'
+dns_search = %(dns_domain)s
+dns_domain = %(dns_domain)s
 dns_nameservers = %(dns_nameservers)s
 
 # Insert_node

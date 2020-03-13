@@ -60,7 +60,7 @@ def addNode():
     if override_dns_domain:
         host_name = socket.getfqdn() + "." + dns_domain
     else:
-        host_name = socket.getfqdn() + "." + installerHostName.split('.', 1)[1]
+        host_name = socket.gethostname() + "." + installerHostName.split('.', 1)[1]
 
     private_ip = get_instance_data('/network/interface/0/ipv4/ipAddress/0/privateIpAddress')
     try:
@@ -185,10 +185,12 @@ def update_resolv_conf():
 
             for inbuf in fpIn.readlines():
                 if inbuf.startswith('search '):
-                    if not inbuf.startswith('search {0}'.format(dns_search)):
-                        _, args = inbuf.rstrip().split('search', 1)
-
-                        fpOut.write('search {0} {1}\n'.format(dns_search, args))
+                    if dns_search:
+                        if not inbuf.startswith('search {0}'.format(dns_search)):
+                            _, args = inbuf.rstrip().split('search', 1)
+                            fpOut.write('search {0} {1}\n'.format(dns_search, args))
+                    else:
+                        fpOut.write(inbuf)
                 elif inbuf.startswith('nameserver'):
                     if not found_nameserver:
                         fpOut.write('\n'.join(
