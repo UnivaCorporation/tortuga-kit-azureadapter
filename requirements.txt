@@ -1,6 +1,5 @@
-urllib3==1.24.2
-azure-cli==2.0.76
-colorama
-gevent
+azure-cli~=2.2.0
+colorama~=0.4.1
+gevent~=1.4.0
 msrestazure==0.6.2
-Jinja2
+Jinja2~=2.0
