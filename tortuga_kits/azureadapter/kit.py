@@ -18,5 +18,10 @@ from tortuga.kit.installer import KitInstallerBase
 
 class AWSInstaller(ResourceAdapterMixin, KitInstallerBase):
     puppet_modules = ['univa-tortuga_kit_azureadapter']
-    config_files = ['azure_rhel_conf.py']
+    config_files = [
+        'azure_rhel_conf.py',
+        'bootstrap-azure-centos7.py',
+        'bootstrap-azure-centos8.py',
+        'bootstrap-azure-ubuntu18.py',
+    ]
     resource_adapter_name = 'azure'
