@@ -221,13 +221,13 @@ Install the Azure resource adapter kit by running the following
 command as `root` on a Tortuga installer host:
 
 ```shell
-install-kit --i-accept-the-eula kit-azureadapter-7.1.0-*.tar.bz2
+install-kit --i-accept-the-eula kit-azureadapter-7.1.1-*.tar.bz2
 ```
 
 The Azure resource adapter is enabled as follows, again run as `root`:
 
 ```shell
-enable-component -p azureadapter-7.1.0 management-7.1.0
+enable-component -p azureadapter-7.1.1 management-7.1.1
 ```
 
 The Azure resource adapter kit is now installed and ready to be

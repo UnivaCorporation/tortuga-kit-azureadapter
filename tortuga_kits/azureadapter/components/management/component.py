@@ -18,7 +18,7 @@ from tortuga.kit.mixins.resource_adapter import \
 
 class ComponentInstaller(ResourceAdapterManagementComponentInstaller):
     name = 'management'
-    version = '7.1.0'
+    version = '7.1.1'
     os_list = [
         {'family': 'rhel', 'version': '7', 'arch': 'x86_64'},
     ]
