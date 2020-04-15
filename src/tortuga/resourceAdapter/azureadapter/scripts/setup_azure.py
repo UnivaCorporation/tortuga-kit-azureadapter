@@ -489,7 +489,6 @@ class ResourceAdapterSetup(TortugaCli):
 
         found_rate_card = False
         for role in self._az_custom_roles:
-            print("Found: {}".format(role['roleName']))
             if role['roleName'] == self.DEFAULT_RATE_CARD_ROLE:
                 found_rate_card = True
 
