@@ -18,9 +18,11 @@ import datetime
 import gettext
 import ipaddress
 import json
+import os
 import re
 import secrets
 import subprocess
+import tempfile
 import time
 from typing import Dict, List
 from urllib.parse import urlparse
@@ -50,6 +52,7 @@ class ResourceAdapterSetup(TortugaCli):
     DEFAULT_URN = 'OpenLogic:CentOS-CI:7-CI:latest'
     DEFAULT_BOOTSTRAP = 'azure_rhel_conf.py'
     DEFAULT_USERNAME = 'centos'
+    DEFAULT_RATE_CARD_ROLE = 'NavopsRateCardViewer'
 
     def __init__(self):
         super().__init__()
@@ -60,7 +63,9 @@ class ResourceAdapterSetup(TortugaCli):
         self._az_compute_node: dict = {}
         self._az_applications: List[dict] = []
         self._az_resource_groups: List[dict] = []
-        self._az_role_assignments: List[dict] = []
+        self._az_custom_roles: List[dict] = []
+        self._az_sub_role_assignments: List[dict] = []
+        self._az_rg_role_assignments: List[dict] = []
         self._az_virtual_networks: List[dict] = []
         self._az_network_security_groups: List[dict] = []
         self._az_subnets: List[dict] = []
@@ -461,7 +466,209 @@ class ResourceAdapterSetup(TortugaCli):
 
         return resource_group
 
-    def _get_role_assignments(self):
+    def _get_custom_roles(self):
+        """
+        Gets the current list of custom roles for the subscription.
+
+        :return List[dict]: a list of custom roles
+
+        """
+        print('Getting custom roles...')
+
+        return self._run_az([
+            'role', 'definition', 'list',
+            '--custom-role-only', 'true'
+        ])
+
+    def _check_custom_roles(self):
+        """
+        Checks custom roles, and creates new ones as required.
+
+        """
+        print('Checking custom roles...')
+
+        found_rate_card = False
+        for role in self._az_custom_roles:
+            if role['roleName'] == self.DEFAULT_RATE_CARD_ROLE:
+                found_rate_card = True
+
+        if not found_rate_card:
+            self._az_custom_roles.append(self._create_rate_card_role())
+
+    def _create_rate_card_role(self):
+        """
+        Creates the Navops rate card role
+
+        :return dict: the newly created role
+
+        """
+        print('Creating {} rate card role...'.format(
+            self.DEFAULT_RATE_CARD_ROLE))
+
+        role_definition = (
+            '{\n'
+            '  "Name": "NavopsRateCardViewer",\n'
+            '  "IsCustom": true,\n'
+            '  "Description": "Navops rate card viewer",\n'
+            '  "Actions": [\n'
+            '    "Microsoft.Compute/virtualMachines/vmSizes/read",\n'
+            '    "Microsoft.Resources/subscriptions/locations/read",\n'
+            '    "Microsoft.Resources/providers/read",\n'
+            '    "Microsoft.ContainerService/containerServices/read",\n'
+            '    "Microsoft.Commerce/RateCard/read"\n'
+            '  ],\n'
+            '  "AssignableScopes": [\n'
+            '    "/subscriptions/' + self._az_account["id"] + '"\n'
+            '  ]\n'
+            '}\n'
+        )
+        if self.verbose:
+            print(role_definition)
+        with tempfile.NamedTemporaryFile(mode="w", delete=False,
+                                         suffix="rate_card.json") as fp:
+            fp.write(role_definition)
+        try:
+            role = self._run_az([
+                "role", "definition", "create", "--role-definition",
+                "@{}".format(fp.name)
+            ])
+        finally:
+            os.remove(fp.name)
+
+        return role
+
+    def _get_sub_role_assignments(self):
+        """
+        Gets the current list of role assignments for the selected
+        application in the subscription.
+
+        :return List[dict: a list of role assignments
+
+        """
+        print('Getting subscription role assignments...')
+
+        return self._run_az([
+            'role', 'assignment', 'list',
+            '--assignee', self._selected_application['appId']
+        ])
+
+    def _check_sub_role_assignments(self):
+        """
+        Ensures that the application has the correct roles assigned in the
+        subscription.
+
+        """
+        has_rate_card_role = False
+        for role in self._az_sub_role_assignments:
+            if role['roleDefinitionName'] == self.DEFAULT_RATE_CARD_ROLE:
+                has_rate_card_role = True
+
+        if not self.interactive:
+            #
+            # If this is a fully automated session, then just go ahead
+            # and perform the role assignment without asking
+            #
+            if not has_rate_card_role:
+                self._assign_rate_card_role()
+            return
+
+        print(self.format_white('----------'))
+
+        if not len(self._az_rg_role_assignments):
+            print(
+                self.format(
+                    'The {} application needs to have the {} role assigned '
+                    'in the subscription.\n',
+                    self._selected_application['displayName'],
+                    self.DEFAULT_RATE_CARD_ROLE
+                )
+            )
+            print(
+                self.format_white(
+                    '[1] Assign the application the {} role in the '
+                    'resource group',
+                    self.DEFAULT_RATE_CARD_ROLE
+                )
+            )
+            print(
+                self.format_white(
+                    '[2] I will assign the application a role myself in the '
+                    'Azure portal\n')
+            )
+
+            options = ['1', '2']
+            selected = ''
+            while selected not in options:
+                selected = input(self.format('Select an option: '))
+                selected = selected.strip().lower()
+
+            if selected == '1':
+                self._assign_rate_card_role()
+
+        else:
+            print(
+                self.format(
+                    'The {} application has the following roles assigned in '
+                    'in the subscription:\n',
+                    self._selected_application['displayName'],
+                    self._selected_resource_group['name']
+                )
+            )
+
+            for assignment in self._az_sub_role_assignments:
+                print(
+                    self.format_white(
+                        '    - {}', assignment['roleDefinitionName']
+                    )
+                )
+
+            print(
+                self.format(
+                    '\nThese role(s) may or may-not have sufficient'
+                    'privileges to access the required Azure APIs. '
+                    'If you run into permissions problems, you may need to '
+                    'assign additional roles to the application in the Azure '
+                    'console.'
+                )
+            )
+
+            input(self.format('\nPress return to continue...'))
+
+    def _assign_rate_card_role(self) -> dict:
+        """
+        Assigns the selected application the rate card role in the selected
+        application.
+
+        :return dict: the role assignment
+
+        """
+        print('Assigning {} role...'.format(self.DEFAULT_RATE_CARD_ROLE))
+
+        count = 5
+
+        #
+        # This operation can fail if the service principal is not finished
+        # being created on the application
+        #
+        while True:
+            try:
+                return self._run_az([
+                    'role', 'assignment', 'create',
+                    '--assignee',  self._selected_application['appId'],
+                    '--role', self.DEFAULT_RATE_CARD_ROLE,
+                    '--scope', '/subscriptions/{}'.format(
+                        self._az_account['id'])
+                ])
+            except Exception as e:
+                if count:
+                    print(self.format_error(
+                        'Role assignment failed, trying again...'))
+                    time.sleep(5)
+                    count -= 1
+                else:
+                    raise e
+
+    def _get_rg_role_assignments(self):
         """
         Gets the current list of role assignments for the selected
         application in the selected resource group.
@@ -469,7 +676,7 @@ class ResourceAdapterSetup(TortugaCli):
         :return List[dict: a list of role assignments
 
         """
-        print('Getting role assignments...')
+        print('Getting resource group role assignments...')
 
         return self._run_az([
             'role', 'assignment', 'list',
@@ -477,9 +684,9 @@ class ResourceAdapterSetup(TortugaCli):
             '--resource-group', self._selected_resource_group['name']
         ])
 
-    def _check_role_assignments(self):
+    def _check_rg_role_assignments(self):
         """
-        Ensures that the application has the correct privileges in the
+        Ensures that the application has the correct roles assigned in the
         resource group.
 
         """
@@ -488,13 +695,13 @@ class ResourceAdapterSetup(TortugaCli):
             # If this is a fully automated session, then just go ahead
             # and perform the role assignment without asking
             #
-            if not len(self._az_role_assignments):
+            if not len(self._az_rg_role_assignments):
                 self._assign_owner_role()
             return
 
         print(self.format_white('----------'))
 
-        if not len(self._az_role_assignments):
+        if not len(self._az_rg_role_assignments):
             print(
                 self.format(
                     'The {} application has no roles assigned in '
@@ -534,7 +741,7 @@ class ResourceAdapterSetup(TortugaCli):
                 )
             )
 
-            for assignment in self._az_role_assignments:
+            for assignment in self._az_rg_role_assignments:
                 print(
                     self.format_white(
                         '    - {}', assignment['roleDefinitionName']
@@ -561,12 +768,12 @@ class ResourceAdapterSetup(TortugaCli):
         :return dict: the role assignment
 
         """
-        print('Assigning role...')
+        print('Assigning Owner role...')
 
         count = 5
 
         #
-        # This operation can fail if the service principal is not finshed
+        # This operation can fail if the service principal is not finished
         # being created on the application
         #
         while True:
@@ -952,8 +1159,12 @@ class ResourceAdapterSetup(TortugaCli):
         #
         # Check resource group permissions
         #
-        self._az_role_assignments = self._get_role_assignments()
-        self._check_role_assignments()
+        self._az_custom_roles = self._get_custom_roles()
+        self._check_custom_roles()
+        self._az_sub_role_assignments = self._get_sub_role_assignments()
+        self._check_sub_role_assignments()
+        self._az_rg_role_assignments = self._get_rg_role_assignments()
+        self._check_rg_role_assignments()
 
         #
         # Select the virtual network
