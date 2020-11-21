@@ -1,4 +1,6 @@
-# tortuga-kit-azureadapter
+# Archived Project
+
+This repository has been archived and is no longer actively being monitored by its maintainers.
 
 ## Overview
 
